@@ -1,0 +1,8 @@
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\LengJiaoConnect.pdb
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\Tools\mke2fs.conf
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\Tools\scrcpy\icon.png
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\Tools\scrcpy\open_a_terminal_here.bat
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\Tools\scrcpy\scrcpy-console.bat
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\Tools\scrcpy\scrcpy-noconsole.vbs
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\Tools\source.properties
+C:\Users\96943\Desktop\LengJiaoConnect\bin\Release\net8.0-windows\win-x64\publish\LengJiaoConnect.exe
