@@ -48,7 +48,7 @@
 
 ## ⬇️ 下载与使用
 普通用户无需配置任何繁琐环境！
-请直接前往 [Releases 页面](#) 下载最新编译的绿色免安装版本，解压后双击 `LengJiaoConnect.exe` 即可运行。
+请直接前往 [Releases 页面](https://github.com/error-10/LengJiaoConnect/releases/tag/v2.0.0) 下载最新编译的绿色免安装版本，解压后双击 `LengJiaoConnect.exe` 即可运行。
 
 ---
 
