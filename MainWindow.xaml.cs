@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -173,6 +173,7 @@ namespace LengJiaoConnect
         // 【新增】文件传输高级配置状态
         private bool _fmUseRoot = false;
         private bool _fmShowHidden = false;
+        private HelperApkManager _helperApkManager;
 
         private string _configFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_ip.txt");
 
@@ -295,6 +296,7 @@ namespace LengJiaoConnect
                             {
                                 _isFirstConnectionShowed = true;
                                 TriggerStatusBarAnimation(_activeSerial);
+                                _ = CheckAndAutoStartAdvancedInteropAsync(_activeSerial);
                             }
                             else
                             {
@@ -565,7 +567,11 @@ namespace LengJiaoConnect
 
         // ================= 小弹窗功能保留 =================
         private void Overlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) { HidePopup(); }
-        private void BtnClosePopup_Click(object sender, RoutedEventArgs e) { HidePopup(); }
+        private void BtnClosePopup_Click(object sender, RoutedEventArgs e) 
+        { 
+            _isWaitingForPermission = false;
+            HidePopup(); 
+        }
         private void BtnToggleScreenMode_Click(object sender, RoutedEventArgs e)
         {
             _turnScreenOffCasting = !_turnScreenOffCasting;
@@ -580,6 +586,190 @@ namespace LengJiaoConnect
             {
                 BtnToggleScreenMode.Content = "💡 保持亮屏";
                 BtnToggleScreenMode.Foreground = new SolidColorBrush(Color.FromRgb(170, 170, 170)); // 恢复灰色
+            }
+        }
+
+        private void ShowPrivacyStep(int step)
+        {
+            PrivacyStep1.Visibility = Visibility.Collapsed;
+            PrivacyStep2.Visibility = Visibility.Collapsed;
+            PrivacyStep3.Visibility = Visibility.Collapsed;
+            PrivacyStep4.Visibility = Visibility.Collapsed;
+
+            if (step == 1) PrivacyStep1.Visibility = Visibility.Visible;
+            if (step == 2) PrivacyStep2.Visibility = Visibility.Visible;
+            if (step == 3) PrivacyStep3.Visibility = Visibility.Visible;
+            if (step == 4) PrivacyStep4.Visibility = Visibility.Visible;
+        }
+
+        private async void BtnAdvancedToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_activeSerial))
+            {
+                MessageBox.Show("请先连接一台设备！", "提示");
+                return;
+            }
+
+            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
+            bool isInstalled = packages.Contains("com.lengjiao.helper");
+
+            if (isInstalled && _helperApkManager != null && _helperApkManager.IsRunning)
+            {
+                ChkSyncClipboard.IsChecked = _helperApkManager.SyncClipboard;
+                ChkSyncNotifications.IsChecked = _helperApkManager.SyncNotifications;
+                ShowPopup(PanelAdvancedSettings);
+            }
+            else if (isInstalled)
+            {
+                // Installed but not connected/authorized
+                ShowPrivacyStep(2);
+                ShowPopup(PanelPrivacyPolicy);
+            }
+            else
+            {
+                // Not installed
+                ShowPrivacyStep(1);
+                ShowPopup(PanelPrivacyPolicy);
+            }
+        }
+
+        private async void BtnPrivacyAgree_Click(object sender, RoutedEventArgs e)
+        {
+            BtnPrivacyAgree.Content = "正在部署...";
+            BtnPrivacyAgree.IsEnabled = false;
+
+            if (_helperApkManager == null)
+                _helperApkManager = new HelperApkManager(this, _activeSerial);
+
+            bool installed = await _helperApkManager.InstallAsync();
+            BtnPrivacyAgree.Content = "同意并安装";
+            BtnPrivacyAgree.IsEnabled = true;
+
+            if (installed)
+            {
+                ShowPrivacyStep(2);
+            }
+            else
+            {
+                MessageBox.Show("辅助服务安装失败。请检查设备是否拦截了ADB安装请求。", "安装失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnPrivacyGoToSettings_Click(object sender, RoutedEventArgs e)
+        {
+            await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+            ShowPrivacyStep(3);
+            
+            _isWaitingForPermission = true;
+            _ = WaitForPermissionAndConnectAsync();
+        }
+
+        private bool _isWaitingForPermission = false;
+        private async Task WaitForPermissionAndConnectAsync()
+        {
+            if (_helperApkManager == null)
+                _helperApkManager = new HelperApkManager(this, _activeSerial);
+
+            for (int i = 0; i < 30; i++) // wait up to 60s
+            {
+                if (!_isWaitingForPermission) return; // User cancelled
+
+                bool connected = await _helperApkManager.ConnectAsync();
+                if (connected)
+                {
+                    Dispatcher.Invoke(() => {
+                        BtnAdvancedToggle.Content = "✨ 高级互联(已开启)";
+                        BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                        ShowPrivacyStep(4);
+                    });
+                    return;
+                }
+                await Task.Delay(2000);
+            }
+
+            Dispatcher.Invoke(() => {
+                _isWaitingForPermission = false;
+                ShowPrivacyStep(2); // Fallback to asking them to authorize
+            });
+        }
+
+        private void ChkAdvancedOption_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_helperApkManager != null)
+            {
+                _helperApkManager.SyncClipboard = ChkSyncClipboard.IsChecked == true;
+                _helperApkManager.SyncNotifications = ChkSyncNotifications.IsChecked == true;
+            }
+        }
+
+        private void BtnOpenPermissionSettings_Click(object sender, RoutedEventArgs e)
+        {
+            if (!string.IsNullOrEmpty(_activeSerial))
+            {
+                Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+            }
+        }
+
+        private void BtnShowRevokeAuth_Click(object sender, RoutedEventArgs e)
+        {
+            // 直接调用 ShowPopup 切换面板，不用调用 HidePopup，因为 ShowPopup 内部已经把所有子面板收起了
+            ShowPopup(PanelRevokeAuth);
+        }
+
+        private void BtnCancelRevoke_Click(object sender, RoutedEventArgs e)
+        {
+            HidePopup();
+        }
+
+        private async void BtnConfirmRevoke_Click(object sender, RoutedEventArgs e)
+        {
+            HidePopup();
+            if (_helperApkManager != null)
+            {
+                _helperApkManager.Stop();
+                _helperApkManager = null;
+            }
+            
+            if (!string.IsNullOrEmpty(_activeSerial))
+            {
+                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} uninstall com.lengjiao.helper"));
+            }
+
+            BtnAdvancedToggle.Content = "✨ 高级互联(未开启)";
+            BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(231, 76, 60));
+        }
+
+        private async Task CheckAndAutoStartAdvancedInteropAsync(string serial)
+        {
+            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {serial} shell pm list packages"));
+            if (packages.Contains("com.lengjiao.helper"))
+            {
+                if (_helperApkManager == null)
+                    _helperApkManager = new HelperApkManager(this, serial);
+                
+                bool connected = await _helperApkManager.ConnectAsync();
+                
+                Dispatcher.Invoke(() => {
+                    if (connected)
+                    {
+                        BtnAdvancedToggle.Content = "✨ 高级互联(已开启)";
+                        BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                    }
+                    else
+                    {
+                        BtnAdvancedToggle.Content = "✨ 高级互联(未开启)";
+                        BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(231, 76, 60));
+                    }
+                });
+            }
+            else
+            {
+                Dispatcher.Invoke(() => {
+                    BtnAdvancedToggle.Content = "✨ 高级互联(未开启)";
+                    BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(231, 76, 60));
+                    ShowPrivacyStep(1);
+                    ShowPopup(PanelPrivacyPolicy);
+                });
             }
         }
 
@@ -687,6 +877,9 @@ namespace LengJiaoConnect
             PanelScrcpySettings.Visibility = Visibility.Collapsed;
             PanelNewItem.Visibility = Visibility.Collapsed;
             PanelTransferSettings.Visibility = Visibility.Collapsed; // 🌟 新增防冲突
+            PanelPrivacyPolicy.Visibility = Visibility.Collapsed;
+            PanelAdvancedSettings.Visibility = Visibility.Collapsed;
+            PanelRevokeAuth.Visibility = Visibility.Collapsed;
 
             // 单独让被点名的面板显示
             targetPanel.Visibility = Visibility.Visible;
@@ -702,7 +895,7 @@ namespace LengJiaoConnect
             PopupTransform.BeginAnimation(TranslateTransform.YProperty, slideAnim);
         }
 
-        private void HidePopup()
+        private async void HidePopup()
         {
             var blurAnim = new DoubleAnimation(15, 0, TimeSpan.FromSeconds(0.2));
             MainBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
@@ -710,10 +903,15 @@ namespace LengJiaoConnect
             var fadeAnim = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.15));
             var slideAnim = new DoubleAnimation(0, 40, TimeSpan.FromSeconds(0.2)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
 
-            fadeAnim.Completed += (s, e) => { PopupOverlay.Visibility = Visibility.Collapsed; };
-
             PopupContainer.BeginAnimation(OpacityProperty, fadeAnim);
             PopupTransform.BeginAnimation(TranslateTransform.YProperty, slideAnim);
+
+            await Task.Delay(200);
+            PopupOverlay.Visibility = Visibility.Collapsed;
+            
+            // 确保完全解除模糊（防止动画卡死）
+            MainBlur.BeginAnimation(BlurEffect.RadiusProperty, null);
+            MainBlur.Radius = 0;
         }
 
         private async void TriggerStatusBarAnimation(string serial)
@@ -1070,6 +1268,66 @@ namespace LengJiaoConnect
                 }
             }
         }
+
+        private void BtnRebootMenu_Click(object sender, RoutedEventArgs e)
+        {
+            RebootMenuPopup.IsOpen = true;
+        }
+
+        private async void MenuRebootNormal_Click(object sender, RoutedEventArgs e)
+        {
+            RebootMenuPopup.IsOpen = false;
+            await ExecuteRebootCommand("reboot", "正在重启设备...");
+        }
+
+        private async void MenuRebootFastboot_Click(object sender, RoutedEventArgs e)
+        {
+            RebootMenuPopup.IsOpen = false;
+            await ExecuteRebootCommand("reboot bootloader", "正在重启至 Fastboot 模式...");
+        }
+
+        private async void MenuRebootRecovery_Click(object sender, RoutedEventArgs e)
+        {
+            RebootMenuPopup.IsOpen = false;
+            await ExecuteRebootCommand("reboot recovery", "正在重启至 Recovery 模式...");
+        }
+
+        private async void MenuRebootEDL_Click(object sender, RoutedEventArgs e)
+        {
+            RebootMenuPopup.IsOpen = false;
+            if (MessageBox.Show("警告：重启至 9008 (EDL) 模式通常用于深度刷机/救砖，手机屏幕会完全黑屏无反应。部分机型可能需要拆机短接。\n\n您确定要继续吗？", "危险操作警告", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            {
+                await ExecuteRebootCommand("reboot edl", "正在尝试重启至 9008 (EDL) 模式...");
+            }
+        }
+
+        public void ShowSystemNotification(string title, string text)
+        {
+            if (_notifyIcon != null)
+            {
+                _notifyIcon.ShowBalloonTip(5000, title, text, System.Windows.Forms.ToolTipIcon.Info);
+            }
+        }
+
+        private async Task ExecuteRebootCommand(string command, string statusMessage)
+        {
+            if (string.IsNullOrEmpty(_activeSerial))
+            {
+                MessageBox.Show("请先连接一台设备！", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} {command}"));
+                MessageBox.Show($"{statusMessage}\n指令已发送，设备可能会断开连接。", "操作成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送重启指令失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
  // ================= 文件管理器数据模型 =================
     public class AndroidFile
     {
