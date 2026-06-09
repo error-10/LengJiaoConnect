@@ -203,8 +203,6 @@ namespace LengJiaoConnect
         public MainWindow()
         {
             InitializeComponent();
-            LoadAppHistory();
-            LoadAppCache();
             SetupTimers();
             this.Loaded += MainWindow_Loaded;
         }
@@ -347,6 +345,11 @@ namespace LengJiaoConnect
                     {
                         if (currentSerials.Count == 0)
                         {
+                            if (_helperApkManager != null)
+                            {
+                                _helperApkManager.Stop();
+                                _helperApkManager = null;
+                            }
                             _activeSerial = "";
                             TxtHeaderDeviceName.Text = "未连接设备";
                             TxtHeaderDeviceName.Foreground = new SolidColorBrush(Color.FromRgb(170, 170, 170));
@@ -373,7 +376,10 @@ namespace LengJiaoConnect
                         }
                         else
                         {
-                            if (!currentSerials.Contains(_activeSerial)) _activeSerial = currentSerials[0];
+                            if (!currentSerials.Contains(_activeSerial))
+                            {
+                                SwitchActiveDevice(currentSerials[0]);
+                            }
 
                             TxtHeaderDeviceName.Text = _deviceNamesCache[_activeSerial];
                             TxtHeaderDeviceName.Foreground = new SolidColorBrush(Color.FromRgb(224, 224, 224));
@@ -390,7 +396,6 @@ namespace LengJiaoConnect
                             {
                                 _isFirstConnectionShowed = true;
                                 TriggerStatusBarAnimation(_activeSerial);
-                                _ = CheckAndAutoStartAdvancedInteropAsync(_activeSerial);
                             }
                             else
                             {
@@ -426,7 +431,7 @@ namespace LengJiaoConnect
                                 Padding = new Thickness(15, 10, 15, 10)
                             };
                             btn.Click += delegate {
-                                _activeSerial = s;
+                                SwitchActiveDevice(s);
                                 TxtHeaderDeviceName.Text = _deviceNamesCache[s];
                                 IconConnectionType.Data = Geometry.Parse(isNet ? wifiPath : usbPath);
                                 HidePopup();
@@ -686,12 +691,10 @@ namespace LengJiaoConnect
         {
             PrivacyStep1.Visibility = Visibility.Collapsed;
             PrivacyStep2.Visibility = Visibility.Collapsed;
-            PrivacyStep3.Visibility = Visibility.Collapsed;
             PrivacyStep4.Visibility = Visibility.Collapsed;
 
             if (step == 1) PrivacyStep1.Visibility = Visibility.Visible;
             if (step == 2) PrivacyStep2.Visibility = Visibility.Visible;
-            if (step == 3) PrivacyStep3.Visibility = Visibility.Visible;
             if (step == 4) PrivacyStep4.Visibility = Visibility.Visible;
         }
 
@@ -703,59 +706,112 @@ namespace LengJiaoConnect
                 return;
             }
 
-            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
-            bool isInstalled = packages.Contains("com.lengjiao.helper");
+            // 在按钮上展示检测中状态，并禁用按钮防连击
+            string originalContent = BtnAdvancedToggle.Content.ToString();
+            BtnAdvancedToggle.Content = "正在检测助手...";
+            BtnAdvancedToggle.IsEnabled = false;
 
-            if (isInstalled)
+            try
             {
-                // Check if the version matches
-                string expectedVersion = "1.0";
-                try
+                bool isInstalled = await Task.Run(() => AdbHelper.IsPackageInstalled(_activeSerial, "com.lengjiao.helper"));
+
+                if (isInstalled)
                 {
-                    string manifestPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HelperApk", "AndroidManifest.xml");
-                    if (System.IO.File.Exists(manifestPath))
+                    // Check if the version matches
+                    string expectedVersion = "1.0";
+                    try
                     {
-                        string xml = System.IO.File.ReadAllText(manifestPath);
-                        var match = System.Text.RegularExpressions.Regex.Match(xml, "android:versionName=\"([^\"]+)\"");
-                        if (match.Success) expectedVersion = match.Groups[1].Value;
+                        string manifestPath = AdbHelper.GetAndroidManifestPath();
+                        if (System.IO.File.Exists(manifestPath))
+                        {
+                            string xml = System.IO.File.ReadAllText(manifestPath);
+                            var match = System.Text.RegularExpressions.Regex.Match(xml, "android:versionName=\"([^\"]+)\"");
+                            if (match.Success) expectedVersion = match.Groups[1].Value;
+                        }
                     }
-                }
-                catch { }
+                    catch { }
 
-                string installedVersionInfo = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell \"dumpsys package com.lengjiao.helper | grep versionName\""));
-                string installedVersion = "";
-                if (!string.IsNullOrEmpty(installedVersionInfo))
+                    string installedVersionInfo = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell \"dumpsys package com.lengjiao.helper\""));
+                    string installedVersion = "";
+                    if (!string.IsNullOrEmpty(installedVersionInfo))
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(installedVersionInfo, @"versionName=([^\s]+)");
+                        if (match.Success) installedVersion = match.Groups[1].Value;
+                    }
+
+                    if (!string.IsNullOrEmpty(installedVersion) && installedVersion != expectedVersion)
+                    {
+                        ShowPopup(PanelUpdateApk);
+                        return;
+                    }
+
+                    // 版本匹配，直接尝试建立连接
+                    if (_helperApkManager == null)
+                    {
+                        _helperApkManager = new HelperApkManager(this, _activeSerial);
+                        BindHelperApkEvents();
+                    }
+
+                    bool connected = _helperApkManager.IsRunning;
+                    if (!connected)
+                    {
+                        // 唤起手机端的后台服务进程
+                        await Task.Run(() => {
+                            AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start-foreground-service -n com.lengjiao.helper/.HelperService");
+                            AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am startservice -n com.lengjiao.helper/.HelperService");
+                        });
+                        
+                        connected = await _helperApkManager.ConnectAsync();
+                    }
+
+                    if (connected)
+                    {
+                        ChkSyncClipboard.IsChecked = _helperApkManager.SyncClipboard;
+                        ChkSyncNotifications.IsChecked = _helperApkManager.SyncNotifications;
+                        ShowPopup(PanelAdvancedSettings);
+                        return;
+                    }
+
+                    // 如果连接失败，尝试自动配权并再次连接
+                    await Task.Run(() => {
+                        AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm grant com.lengjiao.helper android.permission.READ_SMS");
+                        AdbHelper.ExecuteCommand($"-s {_activeSerial} shell cmd notification allow_listener com.lengjiao.helper/com.lengjiao.helper.HelperService");
+                    });
+
+                    connected = await _helperApkManager.ConnectAsync();
+                    if (connected)
+                    {
+                        ChkSyncClipboard.IsChecked = _helperApkManager.SyncClipboard;
+                        ChkSyncNotifications.IsChecked = _helperApkManager.SyncNotifications;
+                        ShowPopup(PanelAdvancedSettings);
+                        return;
+                    }
+
+                    // 依然连接失败，展示配权与连接失败引导（步骤2）
+                    ShowPrivacyStep(2);
+                    ShowPopup(PanelPrivacyPolicy);
+                    TxtInstallStatus.Text = "连接助手失败，请手动确认";
+                    ProgInstall.IsIndeterminate = false;
+                    
+                    TxtPermError.Text = "无法与手机端助手建立连接，请确保手机中已允许助手运行并授予【短信/通知】读取权限。";
+                    TxtPermError.Visibility = Visibility.Visible;
+                    BtnPermManualContinue.Visibility = Visibility.Visible;
+                }
+                else
                 {
-                    var match = System.Text.RegularExpressions.Regex.Match(installedVersionInfo, "versionName=([^\\s]+)");
-                    if (match.Success) installedVersion = match.Groups[1].Value;
-                }
-
-                if (!string.IsNullOrEmpty(installedVersion) && installedVersion != expectedVersion)
-                {
-                    ShowPopup(PanelUpdateApk);
-                    return;
+                    // 未安装，展示隐私提示与安装指引（步骤1）
+                    ShowPrivacyStep(1);
+                    ShowPopup(PanelPrivacyPolicy);
                 }
             }
-
-            if (isInstalled && _helperApkManager != null && _helperApkManager.IsRunning)
+            catch (Exception ex)
             {
-                // Set toggles to match state
-                ChkSyncClipboard.IsChecked = _helperApkManager.SyncClipboard;
-                ChkSyncNotifications.IsChecked = _helperApkManager.SyncNotifications;
-                // Read local preferences for SMS/Apps/Media? Actually let's just keep them in UI state.
-                ShowPopup(PanelAdvancedSettings);
+                MessageBox.Show($"检测或连接助手失败: {ex.Message}", "错误");
             }
-            else if (isInstalled)
+            finally
             {
-                // Installed but not connected/authorized
-                ShowPopup(PanelPrivacyPolicy);
-                BtnPrivacyAgree_Click(null, null);
-            }
-            else
-            {
-                // Not installed
-                ShowPrivacyStep(1);
-                ShowPopup(PanelPrivacyPolicy);
+                BtnAdvancedToggle.Content = originalContent;
+                BtnAdvancedToggle.IsEnabled = true;
             }
         }
 
@@ -777,8 +833,7 @@ namespace LengJiaoConnect
                 BindHelperApkEvents();
             }
 
-            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
-            bool isInstalled = packages.Contains("com.lengjiao.helper");
+            bool isInstalled = await Task.Run(() => AdbHelper.IsPackageInstalled(_activeSerial, "com.lengjiao.helper"));
 
             if (!isInstalled)
             {
@@ -795,8 +850,8 @@ namespace LengJiaoConnect
                         break; // Stop waiting, it already failed
                     }
 
-                    string pkgs = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
-                    if (pkgs.Contains("com.lengjiao.helper"))
+                    bool installed = await Task.Run(() => AdbHelper.IsPackageInstalled(_activeSerial, "com.lengjiao.helper"));
+                    if (installed)
                     {
                         actuallyInstalled = true;
                         break;
@@ -868,41 +923,30 @@ namespace LengJiaoConnect
 
         private async Task ProceedToStep3Cache()
         {
-            ShowPrivacyStep(3);
-            
-            // Wait for helper to connect
-            bool connected = false;
-            for (int i = 0; i < 5; i++)
+            // 在后台异步尝试连接并请求缓存，不阻塞用户界面
+            _ = Task.Run(async () =>
             {
-                connected = await _helperApkManager.ConnectAsync();
-                if (connected) break;
-                await Task.Delay(1000);
-            }
+                bool connected = false;
+                for (int i = 0; i < 3; i++)
+                {
+                    connected = await _helperApkManager.ConnectAsync();
+                    if (connected) break;
+                    await Task.Delay(500);
+                }
 
-            if (!connected)
-            {
-                MessageBox.Show("无法连接到助手，请确保在手机上允许了助手运行。", "错误");
-                ShowPrivacyStep(2);
-                return;
-            }
-
-            // Tell helper to refresh apps and SMS
-            if (ChkSyncApps.IsChecked == true)
-            {
-                _helperApkManager.RequestAppList();
-            }
-            if (ChkSyncSms.IsChecked == true)
-            {
-                _helperApkManager.RequestSmsList();
-            }
-            
-            await Task.Delay(1500); // Give it some time to cache
+                if (connected)
+                {
+                    if (ChkSyncApps.IsChecked == true) _helperApkManager.RequestAppList();
+                    if (ChkSyncSms.IsChecked == true) _helperApkManager.RequestSmsList();
+                }
+            });
 
             Dispatcher.Invoke(() => {
                 BtnAdvancedToggle.Content = "✨ 高级互联(已开启)";
                 BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
                 ShowPrivacyStep(4);
             });
+            await Task.CompletedTask;
         }
 
         private void BtnEnterAdvanced_Click(object sender, RoutedEventArgs e)
@@ -960,8 +1004,8 @@ namespace LengJiaoConnect
 
         private async Task CheckAndAutoStartAdvancedInteropAsync(string serial)
         {
-            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {serial} shell pm list packages"));
-            if (packages.Contains("com.lengjiao.helper"))
+            bool isInstalled = await Task.Run(() => AdbHelper.IsPackageInstalled(serial, "com.lengjiao.helper"));
+            if (isInstalled)
             {
                 if (_helperApkManager == null)
                 {
@@ -969,6 +1013,12 @@ namespace LengJiaoConnect
                     BindHelperApkEvents();
                 }
                 
+                // 唤起手机端的后台服务进程，确保服务运行中
+                await Task.Run(() => {
+                    AdbHelper.ExecuteCommand($"-s {serial} shell am start-foreground-service -n com.lengjiao.helper/.HelperService");
+                    AdbHelper.ExecuteCommand($"-s {serial} shell am startservice -n com.lengjiao.helper/.HelperService");
+                });
+
                 bool connected = await _helperApkManager.ConnectAsync();
                 
                 Dispatcher.Invoke(() => {
@@ -1058,13 +1108,49 @@ namespace LengJiaoConnect
             public string DateStr { get; set; }
         }
         private System.Collections.ObjectModel.ObservableCollection<SmsItem> _smsList = new System.Collections.ObjectModel.ObservableCollection<SmsItem>();
+        private List<SmsItem> _tempSmsList = new List<SmsItem>();
+        private System.Threading.Timer? _smsBatchTimer;
+        private readonly object _smsLock = new object();
 
         private void OnSmsDataReceived(string address, long timestamp, string body)
         {
-            Dispatcher.Invoke(() => {
-                string dateStr = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timestamp).ToLocalTime().ToString("MM-dd HH:mm");
-                _smsList.Add(new SmsItem { Address = address, Body = body, DateStr = dateStr });
-            });
+            string dateStr = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timestamp).ToLocalTime().ToString("MM-dd HH:mm");
+            
+            lock (_smsLock)
+            {
+                _tempSmsList.Add(new SmsItem { Address = address, Body = body, DateStr = dateStr });
+            }
+
+            if (_smsBatchTimer == null)
+            {
+                _smsBatchTimer = new System.Threading.Timer(_ => {
+                    Dispatcher.Invoke(() => {
+                        List<SmsItem> itemsToInsert;
+                        lock (_smsLock)
+                        {
+                            itemsToInsert = new List<SmsItem>(_tempSmsList);
+                            _tempSmsList.Clear();
+                        }
+                        
+                        // 一次性渲染，避免多次触发界面 Measure/Arrange
+                        _smsList.Clear();
+                        foreach (var item in itemsToInsert)
+                        {
+                            _smsList.Add(item);
+                        }
+
+                        // 同步完成，收起加载遮罩与提示
+                        if (PanelSmsLoading != null) PanelSmsLoading.Visibility = Visibility.Collapsed;
+                        if (TxtSmsLoading != null) TxtSmsLoading.Visibility = Visibility.Collapsed;
+                        if (BtnRefreshSms != null) BtnRefreshSms.IsEnabled = true;
+                    });
+                    _smsBatchTimer = null;
+                }, null, 200, System.Threading.Timeout.Infinite);
+            }
+            else
+            {
+                _smsBatchTimer.Change(200, System.Threading.Timeout.Infinite);
+            }
         }
 
         private class AppItem
@@ -1074,22 +1160,37 @@ namespace LengJiaoConnect
             public required string Base64Icon { get; set; }
             [System.Text.Json.Serialization.JsonIgnore]
             public System.Windows.Media.Imaging.BitmapImage? IconImage { get; set; }
+            [System.Text.Json.Serialization.JsonIgnore]
+            public byte[]? DecodedIconBytes { get; set; }
         }
 
         private List<AppItem> _allAppsList = new List<AppItem>();
         private List<AppItem> _tempAppsList = new List<AppItem>();
         private Dictionary<string, int> _appClickHistory = new Dictionary<string, int>();
-        private string _appHistoryPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_history.json");
-        private string _appsCachePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "apps_cache.json");
         private System.Windows.Threading.DispatcherTimer _appsPeriodicSyncTimer;
+        private System.Threading.CancellationTokenSource? _searchCts;
+        private string GetAppsCachePath(string serial)
+        {
+            if (string.IsNullOrEmpty(serial)) return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "apps_cache.json");
+            string safeSerial = serial.Replace(":", "_").Replace("/", "_").Replace("\\", "_");
+            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"apps_cache_{safeSerial}.json");
+        }
 
-        private async void LoadAppCache()
+        private string GetAppHistoryPath(string serial)
+        {
+            if (string.IsNullOrEmpty(serial)) return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_history.json");
+            string safeSerial = serial.Replace(":", "_").Replace("/", "_").Replace("\\", "_");
+            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"app_history_{safeSerial}.json");
+        }
+
+        private async Task LoadAppCacheAsync(string serial)
         {
             try
             {
-                if (System.IO.File.Exists(_appsCachePath))
+                string path = GetAppsCachePath(serial);
+                if (System.IO.File.Exists(path))
                 {
-                    string json = await System.IO.File.ReadAllTextAsync(_appsCachePath);
+                    string json = await System.IO.File.ReadAllTextAsync(path);
                     var list = System.Text.Json.JsonSerializer.Deserialize<List<AppItem>>(json);
                     if (list != null)
                     {
@@ -1099,56 +1200,76 @@ namespace LengJiaoConnect
                                 if (!string.IsNullOrEmpty(app.Base64Icon))
                                 {
                                     try {
-                                        byte[] bytes = Convert.FromBase64String(app.Base64Icon);
-                                        var bmi = new System.Windows.Media.Imaging.BitmapImage();
-                                        bmi.BeginInit();
-                                        bmi.StreamSource = new System.IO.MemoryStream(bytes);
-                                        bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                                        bmi.EndInit();
-                                        bmi.Freeze();
-                                        app.IconImage = bmi;
+                                        app.DecodedIconBytes = Convert.FromBase64String(app.Base64Icon);
                                     } catch { }
                                 }
                             }
                         });
                         
+                        foreach (var app in list)
+                        {
+                            if (app.DecodedIconBytes != null)
+                            {
+                                try {
+                                    var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                                    bmi.BeginInit();
+                                    bmi.StreamSource = new System.IO.MemoryStream(app.DecodedIconBytes);
+                                    bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                                    bmi.EndInit();
+                                    bmi.Freeze();
+                                    app.IconImage = bmi;
+                                } catch { }
+                            }
+                        }
+                        
                         _allAppsList = list;
                     }
                 }
-            }
-            catch { }
-        }
-
-        private void SaveAppCache(List<AppItem> list)
-        {
-            try
-            {
-                string json = System.Text.Json.JsonSerializer.Serialize(list);
-                System.IO.File.WriteAllText(_appsCachePath, json);
-            }
-            catch { }
-        }
-
-        private void LoadAppHistory()
-        {
-            try
-            {
-                if (System.IO.File.Exists(_appHistoryPath))
+                else
                 {
-                    string json = System.IO.File.ReadAllText(_appHistoryPath);
-                    var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(json);
-                    if (dict != null) _appClickHistory = dict;
+                    _allAppsList = new List<AppItem>();
                 }
             }
             catch { }
         }
 
-        private void SaveAppHistory()
+        private void SaveAppCache(List<AppItem> list, string serial)
         {
             try
             {
+                string path = GetAppsCachePath(serial);
+                string json = System.Text.Json.JsonSerializer.Serialize(list);
+                System.IO.File.WriteAllText(path, json);
+            }
+            catch { }
+        }
+
+        private void LoadAppHistory(string serial)
+        {
+            try
+            {
+                string path = GetAppHistoryPath(serial);
+                if (System.IO.File.Exists(path))
+                {
+                    string json = System.IO.File.ReadAllText(path);
+                    var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(json);
+                    if (dict != null) _appClickHistory = dict;
+                }
+                else
+                {
+                    _appClickHistory = new Dictionary<string, int>();
+                }
+            }
+            catch { }
+        }
+
+        private void SaveAppHistory(string serial)
+        {
+            try
+            {
+                string path = GetAppHistoryPath(serial);
                 string json = System.Text.Json.JsonSerializer.Serialize(_appClickHistory);
-                System.IO.File.WriteAllText(_appHistoryPath, json);
+                System.IO.File.WriteAllText(path, json);
             }
             catch { }
         }
@@ -1182,17 +1303,28 @@ namespace LengJiaoConnect
             });
 
             await Task.Run(() => {
-                SaveAppCache(newList);
+                SaveAppCache(newList, _activeSerial);
                 
                 foreach (var app in newList)
                 {
                     if (!string.IsNullOrEmpty(app.Base64Icon) && app.IconImage == null)
                     {
                         try {
-                            byte[] bytes = Convert.FromBase64String(app.Base64Icon);
+                            app.DecodedIconBytes = Convert.FromBase64String(app.Base64Icon);
+                        } catch { }
+                    }
+                }
+            });
+            
+            await Dispatcher.Invoke(async () => {
+                foreach (var app in newList)
+                {
+                    if (app.DecodedIconBytes != null && app.IconImage == null)
+                    {
+                        try {
                             var bmi = new System.Windows.Media.Imaging.BitmapImage();
                             bmi.BeginInit();
-                            bmi.StreamSource = new System.IO.MemoryStream(bytes);
+                            bmi.StreamSource = new System.IO.MemoryStream(app.DecodedIconBytes);
                             bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
                             bmi.EndInit();
                             bmi.Freeze(); 
@@ -1200,15 +1332,11 @@ namespace LengJiaoConnect
                         } catch { }
                     }
                 }
-            });
-            
-            Dispatcher.Invoke(() => {
+                
                 _allAppsList = newList;
-            });
-            
-            await RenderAppsListAsync(TxtAppSearch.Text);
-            
-            Dispatcher.Invoke(() => {
+                
+                await RenderAppsListAsync(TxtAppSearch.Text);
+                
                 PanelAppsLoading.Visibility = Visibility.Collapsed;
                 if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = true;
                 if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
@@ -1244,9 +1372,43 @@ namespace LengJiaoConnect
             _ = SyncAppsFromPhone();
         }
 
+        private async Task SyncSmsFromPhone()
+        {
+            if (_helperApkManager == null || !_helperApkManager.IsRunning) return;
+            
+            Dispatcher.Invoke(() => {
+                _tempSmsList.Clear();
+                if (BtnRefreshSms != null) BtnRefreshSms.IsEnabled = false;
+                if (TxtSmsLoading != null) TxtSmsLoading.Visibility = Visibility.Visible;
+                if (PanelSmsLoading != null) PanelSmsLoading.Visibility = Visibility.Visible;
+            });
+            
+            await _helperApkManager.SendCmdAsync("CMD:REQ_SMS");
+            
+            await Task.Delay(15000);
+            Dispatcher.Invoke(() => {
+                if (_tempSmsList.Count == 0 && BtnRefreshSms != null && !BtnRefreshSms.IsEnabled)
+                {
+                    BtnRefreshSms.IsEnabled = true;
+                    if (TxtSmsLoading != null) TxtSmsLoading.Visibility = Visibility.Collapsed;
+                    if (PanelSmsLoading != null) PanelSmsLoading.Visibility = Visibility.Collapsed;
+                }
+            });
+        }
+
+        private void BtnRefreshSms_Click(object sender, RoutedEventArgs e)
+        {
+            _ = SyncSmsFromPhone();
+        }
+
         private async Task RenderAppsListAsync(string filter = "")
         {
             PanelAppsLoading.Visibility = Visibility.Visible;
+            if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Visible;
+            
+            // Allow UI to render the loading overlay first
+            await Task.Yield();
+
             WrapApps.Children.Clear();
             WrapRecentApps.Children.Clear();
             
@@ -1259,15 +1421,9 @@ namespace LengJiaoConnect
                 filteredApps = _allAppsList.Where(a => a.AppName.ToLower().Contains(lowerFilter) || a.PackageName.ToLower().Contains(lowerFilter)).ToList();
             }
 
-            int count = 0;
             foreach (var app in filteredApps)
             {
                 WrapApps.Children.Add(CreateAppElement(app));
-                count++;
-                if (count % 15 == 0) 
-                {
-                    await Task.Delay(1);
-                }
             }
 
             // Populate recent apps if not searching and we have history
@@ -1291,6 +1447,7 @@ namespace LengJiaoConnect
             }
             
             PanelAppsLoading.Visibility = Visibility.Collapsed;
+            if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
         }
 
         private UIElement CreateAppElement(AppItem app)
@@ -1306,7 +1463,7 @@ namespace LengJiaoConnect
                 // Update history
                 if (_appClickHistory.ContainsKey(app.PackageName)) _appClickHistory[app.PackageName]++;
                 else _appClickHistory[app.PackageName] = 1;
-                SaveAppHistory();
+                SaveAppHistory(_activeSerial);
                 
                 // Launch app using monkey
                 await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell monkey -p {app.PackageName} -c android.intent.category.LAUNCHER 1"));
@@ -1330,7 +1487,20 @@ namespace LengJiaoConnect
         private async void TxtAppSearch_TextChanged(object sender, TextChangedEventArgs e)
         {
             TxtAppSearchHint.Visibility = string.IsNullOrEmpty(TxtAppSearch.Text) ? Visibility.Visible : Visibility.Collapsed;
-            await RenderAppsListAsync(TxtAppSearch.Text);
+            
+            _searchCts?.Cancel();
+            _searchCts = new System.Threading.CancellationTokenSource();
+            var token = _searchCts.Token;
+
+            try
+            {
+                await Task.Delay(250, token);
+                if (!token.IsCancellationRequested)
+                {
+                    await RenderAppsListAsync(TxtAppSearch.Text);
+                }
+            }
+            catch (TaskCanceledException) { }
         }
 
         private void TxtAppSearch_GotFocus(object sender, RoutedEventArgs e)
@@ -1439,17 +1609,51 @@ namespace LengJiaoConnect
                 return false;
             }
 
-            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
-            bool isInstalled = packages.Contains("com.lengjiao.helper");
+            bool isInstalled = await Task.Run(() => AdbHelper.IsPackageInstalled(_activeSerial, "com.lengjiao.helper"));
 
-            if (isInstalled && _helperApkManager != null && _helperApkManager.IsRunning)
+            if (isInstalled)
             {
-                return true;
+                if (_helperApkManager == null)
+                {
+                    _helperApkManager = new HelperApkManager(this, _activeSerial);
+                    BindHelperApkEvents();
+                }
+
+                if (!_helperApkManager.IsRunning)
+                {
+                    // 唤起手机端的后台服务进程
+                    await Task.Run(() => {
+                        AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start-foreground-service -n com.lengjiao.helper/.HelperService");
+                        AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am startservice -n com.lengjiao.helper/.HelperService");
+                    });
+
+                    bool connected = await _helperApkManager.ConnectAsync();
+                    if (connected)
+                    {
+                        Dispatcher.Invoke(() => {
+                            BtnAdvancedToggle.Content = "✨ 高级互联(已开启)";
+                            BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                        });
+                        return true;
+                    }
+                }
+                else
+                {
+                    return true;
+                }
             }
-            else if (isInstalled)
+
+            if (isInstalled)
             {
+                // 如果已安装但唤醒/连接失败，弹出配权引导框，并自动触发授权及重连流程，避免卡死
                 ShowPrivacyStep(2);
                 ShowPopup(PanelPrivacyPolicy);
+                
+                _ = Task.Run(async () => {
+                    await Dispatcher.InvokeAsync(() => {
+                        BtnPrivacyAgree_Click(null, null);
+                    });
+                });
                 return false;
             }
             else
@@ -1462,14 +1666,42 @@ namespace LengJiaoConnect
 
         private void BtnExitApps_Click(object sender, RoutedEventArgs e) 
         { 
-            PanelApps.Visibility = Visibility.Collapsed;
-            PanelHomeButtons.Visibility = Visibility.Visible;
+            var fadeAnim = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.25));
+            var slideAnim = new DoubleAnimation(0, 30, TimeSpan.FromSeconds(0.25)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            
+            fadeAnim.Completed += (s, ev) =>
+            {
+                PanelApps.Visibility = Visibility.Collapsed;
+                
+                // Show Home buttons with a smooth fade in
+                PanelHomeButtons.Visibility = Visibility.Visible;
+                PanelHomeButtons.Opacity = 0;
+                var homeFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.2));
+                PanelHomeButtons.BeginAnimation(OpacityProperty, homeFade);
+            };
+            
+            PanelApps.BeginAnimation(OpacityProperty, fadeAnim);
+            TransApps.BeginAnimation(TranslateTransform.YProperty, slideAnim);
         }
 
         private void BtnExitSms_Click(object sender, RoutedEventArgs e) 
         { 
-            PanelSms.Visibility = Visibility.Collapsed;
-            PanelHomeButtons.Visibility = Visibility.Visible;
+            var fadeAnim = new DoubleAnimation(1, 0, TimeSpan.FromSeconds(0.25));
+            var slideAnim = new DoubleAnimation(0, 30, TimeSpan.FromSeconds(0.25)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+            
+            fadeAnim.Completed += (s, ev) =>
+            {
+                PanelSms.Visibility = Visibility.Collapsed;
+                
+                // Show Home buttons with a smooth fade in
+                PanelHomeButtons.Visibility = Visibility.Visible;
+                PanelHomeButtons.Opacity = 0;
+                var homeFade = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.2));
+                PanelHomeButtons.BeginAnimation(OpacityProperty, homeFade);
+            };
+            
+            PanelSms.BeginAnimation(OpacityProperty, fadeAnim);
+            TransSms.BeginAnimation(TranslateTransform.YProperty, slideAnim);
         }
 
         private void BtnMediaPrev_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:MEDIA_PREV"); }
@@ -1688,8 +1920,26 @@ namespace LengJiaoConnect
 
             try
             {
-                string apkPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HelperApk", "LengJiaoHelper.apk");
-                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} install -r \"{apkPath}\""));
+                string apkPath = AdbHelper.GetHelperApkPath();
+                string installRes = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} install -r -t -d -g \"{apkPath}\""));
+                
+                if (installRes.Contains("Failure") || installRes.Contains("failed"))
+                {
+                    if (installRes.Contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") || installRes.Contains("INCOMPATIBLE"))
+                    {
+                        // 签名冲突，卸载后再尝试重新安装
+                        await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} uninstall com.lengjiao.helper"));
+                        installRes = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} install -r -t -d -g \"{apkPath}\""));
+                        if (installRes.Contains("Failure") || installRes.Contains("failed"))
+                        {
+                            throw new Exception("安装失败: " + installRes);
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("安装失败: " + installRes);
+                    }
+                }
                 
                 // Hide popup and start the initialization process
                 HidePopup();
@@ -1779,6 +2029,37 @@ namespace LengJiaoConnect
             
             TransFrame1.BeginAnimation(TranslateTransform.YProperty, slideUp1);
             TransFrame2.BeginAnimation(TranslateTransform.YProperty, slideUp2);
+        }
+
+        private void SwitchActiveDevice(string serial)
+        {
+            if (_activeSerial == serial) return;
+
+            // 1. 停止旧的助手连接管理器
+            if (_helperApkManager != null)
+            {
+                _helperApkManager.Stop();
+                _helperApkManager = null;
+            }
+
+            // 2. 更新当前活跃设备 Serial
+            _activeSerial = serial;
+
+            // 3. 清理内存中旧设备的应用/短信缓存，防止串屏
+            _allAppsList.Clear();
+            _tempAppsList.Clear();
+            _smsList.Clear();
+            _tempSmsList.Clear();
+
+            if (!string.IsNullOrEmpty(serial))
+            {
+                // 4. 重载新设备特有的本地应用缓存和历史记录
+                _ = LoadAppCacheAsync(serial);
+                LoadAppHistory(serial);
+
+                // 5. 为新设备异步拉起助手连接
+                _ = CheckAndAutoStartAdvancedInteropAsync(serial);
+            }
         }
 
         private bool _isUpdatingStatus = false;

@@ -410,6 +410,7 @@
                             <TextBlock Text="已安装应用列表" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,15,0">
+                            <TextBlock Text="如果列表空白或不及时，请按刷新" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,15,0" FontSize="12"/>
                             <TextBlock Name="TxtAppsLoading" Text="正在同步..." Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed"/>
                             <Button Name="BtnRefreshApps" Content="刷新列表" Style="{StaticResource HeaderButtonStyle}" Background="#007ACC" Click="BtnRefreshApps_Click"/>
                         </StackPanel>
@@ -454,40 +455,53 @@
                             <Button Content="← 返回" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Margin="0,0,10,0" Click="BtnExitSms_Click"/>
                             <TextBlock Text="收件箱 (最近50条)" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,15,0">
+                            <TextBlock Text="如果列表空白或不及时，请按刷新" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,15,0" FontSize="12"/>
+                            <TextBlock Name="TxtSmsLoading" Text="正在同步..." Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed"/>
+                            <Button Name="BtnRefreshSms" Content="刷新列表" Style="{StaticResource HeaderButtonStyle}" Background="#007ACC" Click="BtnRefreshSms_Click"/>
+                        </StackPanel>
                     </Grid>
-                    <ListView Grid.Row="1" Name="ListSms" Background="Transparent" BorderThickness="0" Foreground="White" Margin="10" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="ListSms_SelectionChanged">
-                        <ListView.Resources>
-                            <Style TargetType="ScrollViewer" BasedOn="{StaticResource ModernScrollViewerStyle}"/>
-                        </ListView.Resources>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Border Background="#252526" CornerRadius="8" Padding="15" Margin="5,5,5,10" BorderBrush="#333333" BorderThickness="1" Cursor="Hand">
-                                    <StackPanel>
-                                        <Grid>
-                                            <TextBlock Text="{Binding Address}" FontWeight="Bold" FontSize="16" Foreground="#4CAF50"/>
-                                            <TextBlock Text="{Binding DateStr}" HorizontalAlignment="Right" Foreground="#888888" FontSize="12"/>
-                                        </Grid>
-                                        <TextBlock Text="{Binding Body}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,8,0,0" Foreground="#DDDDDD" FontSize="14" LineHeight="20" MaxHeight="20"/>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="ListViewItem">
-                                            <Border Background="Transparent">
-                                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                    </ListView>
+                    <Grid Grid.Row="1">
+                        <ListView Name="ListSms" Background="Transparent" BorderThickness="0" Foreground="White" Margin="10" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="ListSms_SelectionChanged">
+                            <ListView.Resources>
+                                <Style TargetType="ScrollViewer" BasedOn="{StaticResource ModernScrollViewerStyle}"/>
+                            </ListView.Resources>
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#252526" CornerRadius="8" Padding="15" Margin="5,5,5,10" BorderBrush="#333333" BorderThickness="1" Cursor="Hand">
+                                        <StackPanel>
+                                            <Grid>
+                                                <TextBlock Text="{Binding Address}" FontWeight="Bold" FontSize="16" Foreground="#4CAF50"/>
+                                                <TextBlock Text="{Binding DateStr}" HorizontalAlignment="Right" Foreground="#888888" FontSize="12"/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Body}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,8,0,0" Foreground="#DDDDDD" FontSize="14" LineHeight="20" MaxHeight="20"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListViewItem">
+                                                <Border Background="Transparent">
+                                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+                        <Grid Name="PanelSmsLoading" Background="#CC1E1E1E" Visibility="Collapsed">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ProgressBar IsIndeterminate="True" Width="100" Height="4" Foreground="#007ACC" Background="#333333" BorderThickness="0" Margin="0,0,0,15"/>
+                                <TextBlock Text="正在从手机同步短信，请稍候..." Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
                 </Grid>
             </Grid>
         <Grid Grid.Row="2" Margin="30,0,30,20">
@@ -586,16 +600,9 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- 步骤3: 缓存数据 -->
-                        <StackPanel Name="PrivacyStep3" Visibility="Collapsed" VerticalAlignment="Center">
-                            <TextBlock Text="正在缓存短信与应用列表..." FontSize="20" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" Margin="0,0,0,15"/>
-                            <ProgressBar IsIndeterminate="True" Width="200" Height="4" Foreground="#4CAF50" Background="#333333" BorderThickness="0" Margin="0,0,0,20"/>
-                            <TextBlock Text="⚠️ 注意，我们不会上传您的数据，仅提升电脑端加载效率。" FontSize="14" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
-                        </StackPanel>
-
                         <!-- 步骤4: 成功开启 -->
                         <StackPanel Name="PrivacyStep4" Visibility="Collapsed" VerticalAlignment="Center">
-                            <TextBlock Text="✨ 缓存成功，高级互联已启用！" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                            <TextBlock Text="✨ 高级互联已成功启用！" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" Margin="0,0,0,15"/>
                             <Button Content="进入高级互联" Style="{StaticResource HeaderButtonStyle}" Background="#4CAF50" Foreground="White" BorderThickness="0" Width="140" HorizontalAlignment="Center" Margin="0,20,0,0" Click="BtnEnterAdvanced_Click"/>
                         </StackPanel>
                     </Grid>

@@ -61,12 +61,23 @@ namespace LengJiaoConnect
 
         public async Task<bool> InstallAsync()
         {
-            string apkPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "HelperApk", "LengJiaoHelper.apk");
-            if (!File.Exists(apkPath)) apkPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HelperApk", "LengJiaoHelper.apk");
+            string apkPath = AdbHelper.GetHelperApkPath();
             
-            string installRes = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_serial} install -t -g \"{apkPath}\""));
+            string installRes = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_serial} install -r -t -d -g \"{apkPath}\""));
             if (installRes.Contains("Failure") || installRes.Contains("failed"))
             {
+                if (installRes.Contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") || installRes.Contains("INCOMPATIBLE"))
+                {
+                    // 签名冲突，卸载后再尝试重新安装
+                    await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_serial} uninstall com.lengjiao.helper"));
+                    installRes = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_serial} install -r -t -d -g \"{apkPath}\""));
+                    if (!installRes.Contains("Failure") && !installRes.Contains("failed"))
+                    {
+                        // 盲投授权 (针对比较开放的 ROM)
+                        await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_serial} shell pm grant com.lengjiao.helper android.permission.READ_SMS"));
+                        return true;
+                    }
+                }
                 return false;
             }
             
