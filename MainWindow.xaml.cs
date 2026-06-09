@@ -198,7 +198,7 @@ namespace LengJiaoConnect
         private TranslateTransform _previousTransBeforeTutorial;
 
         // ================= 常量定义 =================
-        private const string AppVersion = "3.0.0"; // 当前电脑端版本号
+        private const string AppVersion = "3.0.1"; // 当前电脑端版本号
 
         public MainWindow()
         {
@@ -1552,6 +1552,7 @@ namespace LengJiaoConnect
             PanelRevokeAuth.Visibility = Visibility.Collapsed;
             PanelKeyboardHelp.Visibility = Visibility.Collapsed;
             PanelUpdateApk.Visibility = Visibility.Collapsed;
+            PanelSmsDetail.Visibility = Visibility.Collapsed; // 修复短信详情弹出重叠Bug
 
             // 单独让被点名的面板显示
             targetPanel.Visibility = Visibility.Visible;
