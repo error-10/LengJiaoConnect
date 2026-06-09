@@ -82,6 +82,8 @@ public class HelperService extends NotificationListenerService {
                             syncApps();
                         } else if (msg.equals("CMD:REQ_SMS")) {
                             syncSms();
+                        } else if (msg.equals("CMD:REQ_MEDIA")) {
+                            syncMedia();
                         } else if (msg.startsWith("CMD:MEDIA_")) {
                             handleMediaCmd(msg.substring(4));
                         }

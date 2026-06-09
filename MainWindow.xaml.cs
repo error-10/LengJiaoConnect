@@ -16,6 +16,7 @@ namespace LengJiaoConnect
     public partial class MainWindow : Window
     {
         private DispatcherTimer _globalDeviceMonitor;
+        private DispatcherTimer _mediaPollTimer;
         private bool _isOobeShowing = false;
         private System.Windows.Forms.NotifyIcon _notifyIcon;
         private bool _isRealExit = false; // 判断是真退出还是最小化到托盘
@@ -227,6 +228,17 @@ namespace LengJiaoConnect
             }
         };
         statusRefreshTimer.Start();
+
+        // 4. 媒体控制高频轮询 (1.5秒一次)
+        _mediaPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+        _mediaPollTimer.Tick += (s, args) =>
+        {
+            if (_helperApkManager != null && _helperApkManager.IsRunning)
+            {
+                _ = _helperApkManager.SendCmdAsync("CMD:REQ_MEDIA");
+            }
+        };
+        _mediaPollTimer.Start();
     }
 
         // ================= 全局心脏监控 =================
@@ -669,8 +681,8 @@ namespace LengJiaoConnect
             else if (isInstalled)
             {
                 // Installed but not connected/authorized
-                ShowPrivacyStep(2);
                 ShowPopup(PanelPrivacyPolicy);
+                BtnPrivacyAgree_Click(null, null);
             }
             else
             {
@@ -1312,11 +1324,11 @@ namespace LengJiaoConnect
                 string apkPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HelperApk", "LengJiaoHelper.apk");
                 await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} install -r \"{apkPath}\""));
                 
-                // Hide popup and show PrivacyStep2 to re-authorize
+                // Hide popup and start the initialization process
                 HidePopup();
                 await Task.Delay(300);
-                ShowPrivacyStep(2);
                 ShowPopup(PanelPrivacyPolicy);
+                BtnPrivacyAgree_Click(null, null);
             }
             catch (Exception ex)
             {
