@@ -198,7 +198,7 @@ namespace LengJiaoConnect
         private TranslateTransform _previousTransBeforeTutorial;
 
         // ================= 常量定义 =================
-        private const string AppVersion = "3.0.1"; // 当前电脑端版本号
+        private const string AppVersion = "3.0.2"; // 当前电脑端版本号
 
         public MainWindow()
         {
