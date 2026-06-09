@@ -985,6 +985,12 @@ namespace LengJiaoConnect
 
         private async void BtnAppsDashboard_Click(object sender, RoutedEventArgs e)
         {
+            if (ChkSyncApps.IsChecked != true)
+            {
+                MessageBox.Show("应用读取权限已关闭，如需读取，请在高级互联设置中开启权限。", "提示");
+                return;
+            }
+
             if (await EnsureAdvancedInteropAsync())
             {
                 BtnApps_Click(null, null);
@@ -993,6 +999,12 @@ namespace LengJiaoConnect
 
         private async void BtnSmsDashboard_Click(object sender, RoutedEventArgs e)
         {
+            if (ChkSyncSms.IsChecked != true)
+            {
+                MessageBox.Show("短信读取权限已关闭，如需读取，请在高级互联设置中开启权限。", "提示");
+                return;
+            }
+
             if (await EnsureAdvancedInteropAsync())
             {
                 BtnSms_Click(null, null);
