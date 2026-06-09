@@ -50,43 +50,47 @@ public class HelperService extends NotificationListenerService {
                 LocalServerSocket server = new LocalServerSocket("lengjiao_helper");
                 Log.d("LengJiao", "Socket Server Started on lengjiao_helper");
                 while (true) {
-                    LocalSocket client = server.accept();
-                    Log.d("LengJiao", "PC Connected!");
-                    outStream = client.getOutputStream();
-                    InputStream in = client.getInputStream();
-                    
-                    byte[] buffer = new byte[65536];
-                    int len;
-                    while ((len = in.read(buffer)) != -1) {
-                        String msg = new String(buffer, 0, len, StandardCharsets.UTF_8).trim();
-                        if (msg.startsWith("SET_CLIP:")) {
-                            String clipText = msg.substring(9);
-                            handler.post(() -> {
-                                ignoreNextClip = true;
-                                ClipData clip = ClipData.newPlainText("LengJiao", clipText);
-                                cb.setPrimaryClip(clip);
-                            });
-                        } else if (msg.equals("CMD:CHECK_PERMISSIONS")) {
-                            boolean hasSms = checkSelfPermission(android.Manifest.permission.READ_SMS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-                            sendToPc("PERM_STATUS:" + (hasSms ? "OK" : "FAIL"));
-                        } else if (msg.equals("CMD:REQUEST_MANUAL_PERMISSIONS")) {
-                            android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                            intent.setData(android.net.Uri.parse("package:" + getPackageName()));
-                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                        } else if (msg.equals("CMD:SYNC_ALL")) {
-                            syncMedia();
-                            syncSms();
-                            syncApps();
-                        } else if (msg.equals("CMD:REQ_APPS")) {
-                            syncApps();
-                        } else if (msg.equals("CMD:REQ_SMS")) {
-                            syncSms();
-                        } else if (msg.equals("CMD:REQ_MEDIA")) {
-                            syncMedia();
-                        } else if (msg.startsWith("CMD:MEDIA_")) {
-                            handleMediaCmd(msg.substring(4));
+                    try {
+                        LocalSocket client = server.accept();
+                        Log.d("LengJiao", "PC Connected!");
+                        outStream = client.getOutputStream();
+                        InputStream in = client.getInputStream();
+                        
+                        byte[] buffer = new byte[65536];
+                        int len;
+                        while ((len = in.read(buffer)) != -1) {
+                            String msg = new String(buffer, 0, len, StandardCharsets.UTF_8).trim();
+                            if (msg.startsWith("SET_CLIP:")) {
+                                String clipText = msg.substring(9);
+                                handler.post(() -> {
+                                    ignoreNextClip = true;
+                                    ClipData clip = ClipData.newPlainText("LengJiao", clipText);
+                                    cb.setPrimaryClip(clip);
+                                });
+                            } else if (msg.equals("CMD:CHECK_PERMISSIONS")) {
+                                boolean hasSms = checkSelfPermission(android.Manifest.permission.READ_SMS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                                sendToPc("PERM_STATUS:" + (hasSms ? "OK" : "FAIL"));
+                            } else if (msg.equals("CMD:REQUEST_MANUAL_PERMISSIONS")) {
+                                android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                intent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                                startActivity(intent);
+                            } else if (msg.equals("CMD:SYNC_ALL")) {
+                                syncMedia();
+                                syncSms();
+                                syncApps();
+                            } else if (msg.equals("CMD:REQ_APPS")) {
+                                syncApps();
+                            } else if (msg.equals("CMD:REQ_SMS")) {
+                                syncSms();
+                            } else if (msg.equals("CMD:REQ_MEDIA")) {
+                                syncMedia();
+                            } else if (msg.startsWith("CMD:MEDIA_")) {
+                                handleMediaCmd(msg.substring(4));
+                            }
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
                 }
             } catch (Exception e) {

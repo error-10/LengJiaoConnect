@@ -860,6 +860,7 @@ namespace LengJiaoConnect
 
         private void BtnPermManualContinue_Click(object sender, RoutedEventArgs e)
         {
+            BtnPermManualContinue.IsEnabled = false;
             _ = ProceedToStep3Cache();
         }
 
@@ -1099,7 +1100,7 @@ namespace LengJiaoConnect
 
         private void OnAppDataReceived(string pkg, string name, string b64Icon)
         {
-            Dispatcher.Invoke(() => {
+            Dispatcher.InvokeAsync(() => {
                 try
                 {
                     // Check if exists
@@ -1115,12 +1116,18 @@ namespace LengJiaoConnect
                         bmi.EndInit();
                     }
 
-                    _allAppsList.Add(new AppItem { PackageName = pkg, AppName = name, Base64Icon = b64Icon, IconImage = bmi });
+                    var appItem = new AppItem { PackageName = pkg, AppName = name, Base64Icon = b64Icon, IconImage = bmi };
+                    _allAppsList.Add(appItem);
                     
-                    // Re-render
-                    RenderAppsList(TxtAppSearch.Text);
+                    // Append element directly without clearing the whole wrap panel
+                    string filter = TxtAppSearch.Text;
+                    bool isSearching = !string.IsNullOrWhiteSpace(filter);
+                    if (!isSearching || appItem.AppName.ToLower().Contains(filter.ToLower()) || appItem.PackageName.ToLower().Contains(filter.ToLower()))
+                    {
+                        WrapApps.Children.Add(CreateAppElement(appItem));
+                    }
                 } catch { }
-            });
+            }, System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void RenderAppsList(string filter = "")
