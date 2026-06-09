@@ -766,7 +766,7 @@ namespace LengJiaoConnect
             IconPermNotif.Text = "⏳";
             IconPermSms.Text = "⏳";
             IconPermApp.Text = "⏳";
-            TxtInstallStatus.Text = "正在部署辅助服务...";
+            TxtInstallStatus.Text = "请在手机上确认安装...";
             ProgInstall.IsIndeterminate = true;
 
             if (_helperApkManager == null)
@@ -775,22 +775,51 @@ namespace LengJiaoConnect
                 BindHelperApkEvents();
             }
 
-            bool installed = await _helperApkManager.InstallAsync();
-            if (!installed)
+            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
+            bool isInstalled = packages.Contains("com.lengjiao.helper");
+
+            if (!isInstalled)
             {
-                TxtInstallStatus.Text = "部署失败，请检查设备连接。";
-                ProgInstall.IsIndeterminate = false;
-                return;
+                // Run install asynchronously so we don't block forever if it prompts
+                var installTask = Task.Run(() => _helperApkManager.InstallAsync());
+                
+                // Wait until package actually appears
+                bool actuallyInstalled = false;
+                for (int i = 0; i < 60; i++) // wait up to 60 seconds for user to click
+                {
+                    // If install task finishes early and returns false (e.g., file not found, adb error)
+                    if (installTask.IsCompleted && !installTask.Result)
+                    {
+                        break; // Stop waiting, it already failed
+                    }
+
+                    string pkgs = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
+                    if (pkgs.Contains("com.lengjiao.helper"))
+                    {
+                        actuallyInstalled = true;
+                        break;
+                    }
+                    await Task.Delay(1000);
+                }
+
+                if (!actuallyInstalled)
+                {
+                    TxtInstallStatus.Text = "部署失败或超时，如果手机未收到安装提示，请重新插拔数据线。";
+                    ProgInstall.IsIndeterminate = false;
+                    return;
+                }
             }
 
             TxtInstallStatus.Text = "部署成功，正在尝试自动配权...";
 
             // 1. Try SMS
-            string smsRes = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm grant com.lengjiao.helper android.permission.READ_SMS"));
-            if (string.IsNullOrWhiteSpace(smsRes)) IconPermSms.Text = "✅"; else IconPermSms.Text = "❌";
+            await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm grant com.lengjiao.helper android.permission.READ_SMS"));
+            string dumpsysInfo = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell dumpsys package com.lengjiao.helper"));
+            bool smsGranted = dumpsysInfo.Contains("android.permission.READ_SMS: granted=true");
+            IconPermSms.Text = smsGranted ? "✅" : "❌";
 
-            // 2. Try App List (No runtime permission needed if QUERY_ALL_PACKAGES is in manifest)
-            IconPermApp.Text = "✅";
+            // 2. Try App List (No runtime permission needed if QUERY_ALL_PACKAGES is in manifest, but domestic ROMs might need manual grant)
+            IconPermApp.Text = "✅"; // Can't reliably check custom ROM permissions via ADB, assume ok visually but prompt via SMS failure
 
             // 3. Try Notification Listener
             await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell cmd notification allow_listener com.lengjiao.helper/com.lengjiao.helper.HelperService"));
@@ -798,9 +827,9 @@ namespace LengJiaoConnect
             // Check if granted
             string enabledListeners = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell settings get secure enabled_notification_listeners"));
             bool notifGranted = enabledListeners != null && enabledListeners.Contains("com.lengjiao.helper");
-            if (notifGranted) IconPermNotif.Text = "✅"; else IconPermNotif.Text = "❌";
+            IconPermNotif.Text = notifGranted ? "✅" : "❌";
 
-            if (IconPermSms.Text == "✅" && IconPermNotif.Text == "✅")
+            if (smsGranted && notifGranted)
             {
                 // Auto grant successful
                 await ProceedToStep3Cache();
@@ -810,14 +839,22 @@ namespace LengJiaoConnect
                 // Auto grant failed
                 ProgInstall.IsIndeterminate = false;
                 TxtInstallStatus.Text = "自动配权未完全成功";
-                TxtPermError.Text = "由于系统限制，自动赋予权限失败。已尝试为您唤起权限设置页，请手动赋予【通知读取】和【短信/应用读取】权限。";
+                TxtPermError.Text = "由于系统限制，部分权限自动赋予失败。已为您唤起权限设置页，请手动赋予【短信/应用读取】等权限。";
                 TxtPermError.Visibility = Visibility.Visible;
                 BtnPermManualContinue.Visibility = Visibility.Visible;
                 
-                // Open app details
-                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:com.lengjiao.helper"));
-                await Task.Delay(1000);
-                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+                // Open app details for SMS and App List
+                if (!smsGranted)
+                {
+                    await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:com.lengjiao.helper"));
+                    await Task.Delay(1000);
+                }
+                
+                // Open notification listener if needed
+                if (!notifGranted)
+                {
+                    await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+                }
             }
         }
 
