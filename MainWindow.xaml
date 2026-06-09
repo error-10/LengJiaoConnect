@@ -598,6 +598,15 @@
                         </StackPanel>
                     </Grid>
 
+                    <!-- APK 更新提示面板 -->
+                    <Grid Name="PanelUpdateApk" Visibility="Collapsed" Background="#252526" Width="400" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel>
+                            <TextBlock Text="⚠️ 检测到重要版本更新" FontSize="20" FontWeight="Bold" Foreground="#E74C3C" Margin="0,0,0,15"/>
+                            <TextBlock Text="当前手机端助手的版本与 PC 端不匹配。为了保证新功能（如媒体音量控制等）正常运行，必须覆盖安装最新版助手 App。" Foreground="#DDDDDD" TextWrapping="Wrap" LineHeight="22" Margin="0,0,0,25"/>
+                            <Button Name="BtnUpdateApk" Content="立即推送到手机更新" Style="{StaticResource HeaderButtonStyle}" Background="#E74C3C" Foreground="White" BorderThickness="0" Height="40" Click="BtnUpdateApk_Click"/>
+                        </StackPanel>
+                    </Grid>
+
                     <Grid Name="PanelAdvancedSettings" Visibility="Collapsed" Margin="0,15,0,0">
                         <StackPanel>
                             <TextBlock Text="✨ 高级互联" FontSize="20" FontWeight="Bold" Margin="0,0,0,15"/>

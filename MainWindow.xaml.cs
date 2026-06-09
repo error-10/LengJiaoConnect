@@ -628,6 +628,37 @@ namespace LengJiaoConnect
             string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
             bool isInstalled = packages.Contains("com.lengjiao.helper");
 
+            if (isInstalled)
+            {
+                // Check if the version matches
+                string expectedVersion = "1.0";
+                try
+                {
+                    string manifestPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HelperApk", "AndroidManifest.xml");
+                    if (System.IO.File.Exists(manifestPath))
+                    {
+                        string xml = System.IO.File.ReadAllText(manifestPath);
+                        var match = System.Text.RegularExpressions.Regex.Match(xml, "android:versionName=\"([^\"]+)\"");
+                        if (match.Success) expectedVersion = match.Groups[1].Value;
+                    }
+                }
+                catch { }
+
+                string installedVersionInfo = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell \"dumpsys package com.lengjiao.helper | grep versionName\""));
+                string installedVersion = "";
+                if (!string.IsNullOrEmpty(installedVersionInfo))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(installedVersionInfo, "versionName=([^\\s]+)");
+                    if (match.Success) installedVersion = match.Groups[1].Value;
+                }
+
+                if (!string.IsNullOrEmpty(installedVersion) && installedVersion != expectedVersion)
+                {
+                    ShowPopup(PanelUpdateApk);
+                    return;
+                }
+            }
+
             if (isInstalled && _helperApkManager != null && _helperApkManager.IsRunning)
             {
                 // Set toggles to match state
@@ -1345,6 +1376,34 @@ namespace LengJiaoConnect
             }
         }
 
+        private async void BtnUpdateApk_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_activeSerial)) return;
+            BtnUpdateApk.IsEnabled = false;
+            BtnUpdateApk.Content = "正在推送并安装...";
+
+            try
+            {
+                string apkPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "HelperApk", "LengJiaoHelper.apk");
+                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} install -r \"{apkPath}\""));
+                
+                // Hide popup and show PrivacyStep2 to re-authorize
+                HidePopup();
+                await Task.Delay(300);
+                ShowPrivacyStep(2);
+                ShowPopup(PanelPrivacyPolicy);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("推送更新失败: " + ex.Message, "错误");
+            }
+            finally
+            {
+                BtnUpdateApk.IsEnabled = true;
+                BtnUpdateApk.Content = "立即推送到手机更新";
+            }
+        }
+
         private void ShowPopup(UIElement targetPanel)
         {
             // 🌟 核心修复：每次弹窗前，先把所有子面板强行隐藏，防止互相嵌套或干扰
@@ -1356,6 +1415,8 @@ namespace LengJiaoConnect
             PanelAdvancedSettings.Visibility = Visibility.Collapsed;
             PanelRevokeAuth.Visibility = Visibility.Collapsed;
             PanelKeyboardHelp.Visibility = Visibility.Collapsed;
+            PanelUpdateApk.Visibility = Visibility.Collapsed;
+            if (PanelMediaPlayer != null) PanelMediaPlayer.Visibility = Visibility.Collapsed;
 
             // 单独让被点名的面板显示
             targetPanel.Visibility = Visibility.Visible;
