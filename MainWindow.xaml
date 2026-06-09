@@ -248,7 +248,7 @@
                 </Grid>
 
                 <!-- 媒体控制卡片 -->
-                <Border Grid.Row="1" Background="#252526" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Margin="0,15,0,0" Padding="15,8" HorizontalAlignment="Center" Width="380" Cursor="Hand" MouseLeftButtonUp="BorderMedia_MouseLeftButtonUp">
+                <Border Grid.Row="1" Background="#252526" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Margin="0,15,0,0" Padding="15,8" HorizontalAlignment="Center" Width="380">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -392,32 +392,7 @@
                         </StackPanel>
                     </Grid>
 
-                    <Grid Name="PanelMediaPlayer" Visibility="Collapsed" Margin="0,5,0,0">
-                        <StackPanel>
-                            <TextBlock Text="🎵 媒体控制中心" FontSize="20" FontWeight="Bold" Margin="0,0,0,15" HorizontalAlignment="Center"/>
-                            <Border CornerRadius="12" Background="#1E1E1E" Padding="20">
-                                <StackPanel>
-                                    <Border CornerRadius="8" Background="#111111" Width="200" Height="200" Margin="0,0,0,20">
-                                        <Image Name="ImgMediaAlbumArt" Stretch="UniformToFill"/>
-                                    </Border>
-                                    <TextBlock Name="TxtMediaPopupTitle" Text="暂无媒体播放" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Name="TxtMediaPopupArtist" Text="等待同步..." FontSize="14" Foreground="#AAAAAA" HorizontalAlignment="Center" Margin="0,5,0,20" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
-                                    
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,20">
-                                        <Button Content="⏮" Style="{StaticResource IconButtonStyle}" FontSize="24" Width="50" Height="50" Margin="0,0,20,0" Click="BtnMediaPrev_Click"/>
-                                        <Button Name="BtnMediaPopupPlayPause" Content="▶️" Style="{StaticResource IconButtonStyle}" FontSize="32" Width="60" Height="60" Margin="0,0,20,0" Click="BtnMediaPlayPause_Click"/>
-                                        <Button Content="⏭" Style="{StaticResource IconButtonStyle}" FontSize="24" Width="50" Height="50" Click="BtnMediaNext_Click"/>
-                                    </StackPanel>
-                                    
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Width="250">
-                                        <TextBlock Text="🔈" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="16" Margin="0,0,10,0"/>
-                                        <Slider Name="SliderMediaVolume" Width="200" Minimum="0" Maximum="15" Value="0" VerticalAlignment="Center" SmallChange="1" LargeChange="1" ValueChanged="SliderMediaVolume_ValueChanged"/>
-                                        <TextBlock Text="🔊" Foreground="#AAAAAA" VerticalAlignment="Center" FontSize="16" Margin="10,0,0,0"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </Grid>
+
                 </Grid>
 
                 <Grid Name="PanelApps" Visibility="Collapsed" Background="#1E1E1E" Opacity="0">
