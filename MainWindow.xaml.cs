@@ -204,6 +204,8 @@ namespace LengJiaoConnect
         {
             InitializeComponent();
             LoadAppHistory();
+            LoadAppCache();
+            SetupTimers();
             this.Loaded += MainWindow_Loaded;
         }
 
@@ -1067,12 +1069,60 @@ namespace LengJiaoConnect
             public required string PackageName { get; set; }
             public required string AppName { get; set; }
             public required string Base64Icon { get; set; }
+            [System.Text.Json.Serialization.JsonIgnore]
             public System.Windows.Media.Imaging.BitmapImage? IconImage { get; set; }
         }
 
         private List<AppItem> _allAppsList = new List<AppItem>();
+        private List<AppItem> _tempAppsList = new List<AppItem>();
         private Dictionary<string, int> _appClickHistory = new Dictionary<string, int>();
         private string _appHistoryPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_history.json");
+        private string _appsCachePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "apps_cache.json");
+        private System.Windows.Threading.DispatcherTimer _appsSyncDebounceTimer;
+        private System.Windows.Threading.DispatcherTimer _appsPeriodicSyncTimer;
+
+        private void LoadAppCache()
+        {
+            try
+            {
+                if (System.IO.File.Exists(_appsCachePath))
+                {
+                    string json = System.IO.File.ReadAllText(_appsCachePath);
+                    var list = System.Text.Json.JsonSerializer.Deserialize<List<AppItem>>(json);
+                    if (list != null)
+                    {
+                        _allAppsList = list;
+                        foreach (var app in _allAppsList)
+                        {
+                            if (!string.IsNullOrEmpty(app.Base64Icon))
+                            {
+                                try {
+                                    byte[] bytes = Convert.FromBase64String(app.Base64Icon);
+                                    var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                                    bmi.BeginInit();
+                                    bmi.StreamSource = new System.IO.MemoryStream(bytes);
+                                    bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                                    bmi.EndInit();
+                                    bmi.Freeze();
+                                    app.IconImage = bmi;
+                                } catch { }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SaveAppCache(List<AppItem> list)
+        {
+            try
+            {
+                string json = System.Text.Json.JsonSerializer.Serialize(list);
+                System.IO.File.WriteAllText(_appsCachePath, json);
+            }
+            catch { }
+        }
 
         private void LoadAppHistory()
         {
@@ -1098,36 +1148,95 @@ namespace LengJiaoConnect
             catch { }
         }
 
+        private void SetupTimers()
+        {
+            _appsSyncDebounceTimer = new System.Windows.Threading.DispatcherTimer();
+            _appsSyncDebounceTimer.Interval = TimeSpan.FromMilliseconds(500);
+            _appsSyncDebounceTimer.Tick += AppsSyncDebounceTimer_Tick;
+
+            _appsPeriodicSyncTimer = new System.Windows.Threading.DispatcherTimer();
+            _appsPeriodicSyncTimer.Interval = TimeSpan.FromMinutes(15);
+            _appsPeriodicSyncTimer.Tick += (s, e) => { _ = SyncAppsFromPhone(); };
+            _appsPeriodicSyncTimer.Start();
+        }
+
         private void OnAppDataReceived(string pkg, string name, string b64Icon)
         {
-            Dispatcher.InvokeAsync(() => {
-                try
-                {
-                    // Check if exists
-                    if (_allAppsList.Any(a => a.PackageName == pkg)) return;
+            Dispatcher.Invoke(() => {
+                if (_tempAppsList.Any(a => a.PackageName == pkg)) return;
+                var appItem = new AppItem { PackageName = pkg, AppName = name, Base64Icon = b64Icon };
+                _tempAppsList.Add(appItem);
+                
+                // Reset debounce timer
+                _appsSyncDebounceTimer.Stop();
+                _appsSyncDebounceTimer.Start();
+            });
+        }
 
-                    System.Windows.Media.Imaging.BitmapImage? bmi = null;
-                    if (!string.IsNullOrEmpty(b64Icon))
-                    {
-                        byte[] bytes = Convert.FromBase64String(b64Icon);
-                        bmi = new System.Windows.Media.Imaging.BitmapImage();
+        private void AppsSyncDebounceTimer_Tick(object? sender, EventArgs e)
+        {
+            _appsSyncDebounceTimer.Stop();
+            
+            // Sync complete, save to cache and swap
+            var newList = new List<AppItem>(_tempAppsList);
+            _tempAppsList.Clear();
+            
+            Task.Run(() => {
+                SaveAppCache(newList);
+            });
+            
+            _allAppsList = newList;
+            
+            // Process images
+            foreach (var app in _allAppsList)
+            {
+                if (!string.IsNullOrEmpty(app.Base64Icon) && app.IconImage == null)
+                {
+                    try {
+                        byte[] bytes = Convert.FromBase64String(app.Base64Icon);
+                        var bmi = new System.Windows.Media.Imaging.BitmapImage();
                         bmi.BeginInit();
                         bmi.StreamSource = new System.IO.MemoryStream(bytes);
+                        bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
                         bmi.EndInit();
-                    }
+                        bmi.Freeze(); // Crucial for cross-thread access
+                        app.IconImage = bmi;
+                    } catch { }
+                }
+            }
+            
+            RenderAppsList(TxtAppSearch.Text);
+            
+            if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = true;
+            if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
+        }
 
-                    var appItem = new AppItem { PackageName = pkg, AppName = name, Base64Icon = b64Icon, IconImage = bmi };
-                    _allAppsList.Add(appItem);
-                    
-                    // Append element directly without clearing the whole wrap panel
-                    string filter = TxtAppSearch.Text;
-                    bool isSearching = !string.IsNullOrWhiteSpace(filter);
-                    if (!isSearching || appItem.AppName.ToLower().Contains(filter.ToLower()) || appItem.PackageName.ToLower().Contains(filter.ToLower()))
-                    {
-                        WrapApps.Children.Add(CreateAppElement(appItem));
-                    }
-                } catch { }
-            }, System.Windows.Threading.DispatcherPriority.Background);
+        private async Task SyncAppsFromPhone()
+        {
+            if (_helperApkManager == null || !_helperApkManager.IsRunning) return;
+            
+            Dispatcher.Invoke(() => {
+                _tempAppsList.Clear();
+                if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = false;
+                if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Visible;
+            });
+            
+            await _helperApkManager.SendCmdAsync("CMD:REQ_APPS");
+            
+            // If phone doesn't respond in 3 seconds, timeout and re-enable button
+            await Task.Delay(3000);
+            Dispatcher.Invoke(() => {
+                if (_tempAppsList.Count == 0 && BtnRefreshApps != null)
+                {
+                    BtnRefreshApps.IsEnabled = true;
+                    if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
+                }
+            });
+        }
+
+        private void BtnRefreshApps_Click(object sender, RoutedEventArgs e)
+        {
+            _ = SyncAppsFromPhone();
         }
 
         private void RenderAppsList(string filter = "")
@@ -1247,6 +1356,8 @@ namespace LengJiaoConnect
             TransApps.BeginAnimation(TranslateTransform.YProperty, slideAnim);
 
             if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:CHECK_PERMISSIONS");
+            
+            RenderAppsList(TxtAppSearch.Text);
         }
 
         private void BtnSms_Click(object sender, RoutedEventArgs e)

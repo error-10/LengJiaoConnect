@@ -409,6 +409,10 @@
                             <Button Content="← 返回" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Margin="0,0,10,0" Click="BtnExitApps_Click"/>
                             <TextBlock Text="已安装应用列表" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,15,0">
+                            <TextBlock Name="TxtAppsLoading" Text="正在同步..." Foreground="#AAAAAA" VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed"/>
+                            <Button Name="BtnRefreshApps" Content="刷新列表" Style="{StaticResource HeaderButtonStyle}" Background="#007ACC" Click="BtnRefreshApps_Click"/>
+                        </StackPanel>
                     </Grid>
                     
                     <!-- Search Box -->
