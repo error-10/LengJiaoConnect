@@ -38,6 +38,7 @@ namespace LengJiaoConnect
         public event Action<string> OnPermissionStatus;
         public event Action<string, long, string> OnSmsData;
         public event Action<string, string, string> OnAppData;
+        public event Action OnAppDataEnd;
         public event Action<string, string, bool> OnMediaData;
 
         public HelperApkManager(MainWindow mainWindow, string serial)
@@ -265,6 +266,10 @@ namespace LengJiaoConnect
                             string[] parts = message.Substring(9).Split(new[] { '|' }, 3);
                             if (parts.Length >= 3)
                                 OnAppData?.Invoke(parts[0], parts[1], parts[2]);
+                        }
+                        else if (message.Equals("APP_DATA_END:"))
+                        {
+                            OnAppDataEnd?.Invoke();
                         }
                         else if (message.StartsWith("MEDIA_DATA:"))
                         {

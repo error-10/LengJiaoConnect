@@ -1007,6 +1007,9 @@ namespace LengJiaoConnect
             _helperApkManager.OnAppData -= OnAppDataReceived;
             _helperApkManager.OnAppData += OnAppDataReceived;
             
+            _helperApkManager.OnAppDataEnd -= OnAppDataEndReceived;
+            _helperApkManager.OnAppDataEnd += OnAppDataEndReceived;
+            
             _helperApkManager.OnMediaData -= OnMediaDataReceived;
             _helperApkManager.OnMediaData += OnMediaDataReceived;
         }
@@ -1078,7 +1081,6 @@ namespace LengJiaoConnect
         private Dictionary<string, int> _appClickHistory = new Dictionary<string, int>();
         private string _appHistoryPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_history.json");
         private string _appsCachePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "apps_cache.json");
-        private System.Windows.Threading.DispatcherTimer _appsSyncDebounceTimer;
         private System.Windows.Threading.DispatcherTimer _appsPeriodicSyncTimer;
 
         private async void LoadAppCache()
@@ -1153,10 +1155,6 @@ namespace LengJiaoConnect
 
         private void SetupTimers()
         {
-            _appsSyncDebounceTimer = new System.Windows.Threading.DispatcherTimer();
-            _appsSyncDebounceTimer.Interval = TimeSpan.FromMilliseconds(500);
-            _appsSyncDebounceTimer.Tick += AppsSyncDebounceTimer_Tick;
-
             _appsPeriodicSyncTimer = new System.Windows.Threading.DispatcherTimer();
             _appsPeriodicSyncTimer.Interval = TimeSpan.FromMinutes(15);
             _appsPeriodicSyncTimer.Tick += (s, e) => { _ = SyncAppsFromPhone(); };
@@ -1169,21 +1167,19 @@ namespace LengJiaoConnect
                 if (_tempAppsList.Any(a => a.PackageName == pkg)) return;
                 var appItem = new AppItem { PackageName = pkg, AppName = name, Base64Icon = b64Icon };
                 _tempAppsList.Add(appItem);
-                
-                _appsSyncDebounceTimer.Stop();
-                _appsSyncDebounceTimer.Start();
             });
         }
 
-        private async void AppsSyncDebounceTimer_Tick(object? sender, EventArgs e)
+        private async void OnAppDataEndReceived()
         {
-            _appsSyncDebounceTimer.Stop();
-            
-            var newList = new List<AppItem>(_tempAppsList);
-            _tempAppsList.Clear();
-            
-            PanelAppsLoading.Visibility = Visibility.Visible;
-            if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = false;
+            var newList = new List<AppItem>();
+            Dispatcher.Invoke(() => {
+                newList = new List<AppItem>(_tempAppsList);
+                _tempAppsList.Clear();
+                
+                PanelAppsLoading.Visibility = Visibility.Visible;
+                if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = false;
+            });
 
             await Task.Run(() => {
                 SaveAppCache(newList);
@@ -1206,12 +1202,17 @@ namespace LengJiaoConnect
                 }
             });
             
-            _allAppsList = newList;
+            Dispatcher.Invoke(() => {
+                _allAppsList = newList;
+            });
+            
             await RenderAppsListAsync(TxtAppSearch.Text);
             
-            PanelAppsLoading.Visibility = Visibility.Collapsed;
-            if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = true;
-            if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
+            Dispatcher.Invoke(() => {
+                PanelAppsLoading.Visibility = Visibility.Collapsed;
+                if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = true;
+                if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
+            });
         }
 
         private async Task SyncAppsFromPhone()
@@ -1222,16 +1223,18 @@ namespace LengJiaoConnect
                 _tempAppsList.Clear();
                 if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = false;
                 if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Visible;
+                PanelAppsLoading.Visibility = Visibility.Visible;
             });
             
             await _helperApkManager.SendCmdAsync("CMD:REQ_APPS");
             
-            await Task.Delay(3000);
+            await Task.Delay(15000);
             Dispatcher.Invoke(() => {
-                if (_tempAppsList.Count == 0 && BtnRefreshApps != null)
+                if (_tempAppsList.Count == 0 && BtnRefreshApps != null && !BtnRefreshApps.IsEnabled)
                 {
                     BtnRefreshApps.IsEnabled = true;
                     if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
+                    PanelAppsLoading.Visibility = Visibility.Collapsed;
                 }
             });
         }

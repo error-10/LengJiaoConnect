@@ -207,11 +207,15 @@ public class HelperService extends NotificationListenerService {
         new Thread(() -> {
             try {
                 android.content.pm.PackageManager pm = getPackageManager();
-                java.util.List<android.content.pm.ApplicationInfo> packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA);
-                for (android.content.pm.ApplicationInfo packageInfo : packages) {
-                    if (pm.getLaunchIntentForPackage(packageInfo.packageName) != null) {
-                        String appName = pm.getApplicationLabel(packageInfo).toString();
-                        android.graphics.drawable.Drawable icon = pm.getApplicationIcon(packageInfo);
+                java.util.List<android.content.pm.PackageInfo> packages = pm.getInstalledPackages(0);
+                for (android.content.pm.PackageInfo pi : packages) {
+                    if (pi.applicationInfo == null) continue;
+                    boolean isUserApp = (pi.applicationInfo.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0;
+                    boolean hasLaunchIntent = pm.getLaunchIntentForPackage(pi.packageName) != null;
+                    
+                    if (isUserApp || hasLaunchIntent) {
+                        String appName = pm.getApplicationLabel(pi.applicationInfo).toString();
+                        android.graphics.drawable.Drawable icon = pm.getApplicationIcon(pi.applicationInfo);
                         
                         android.graphics.Bitmap bitmap = null;
                         if (icon instanceof android.graphics.drawable.BitmapDrawable) {
@@ -229,9 +233,10 @@ public class HelperService extends NotificationListenerService {
                         byte[] b = baos.toByteArray();
                         String base64Icon = android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP);
                         
-                        sendToPc("APP_DATA:" + packageInfo.packageName + "|" + appName + "|" + base64Icon);
+                        sendToPc("APP_DATA:" + pi.packageName + "|" + appName + "|" + base64Icon);
                     }
                 }
+                sendToPc("APP_DATA_END:");
             } catch (Exception e) { e.printStackTrace(); }
         }).start();
     }
