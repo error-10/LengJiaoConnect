@@ -66,6 +66,20 @@ public class HelperService extends NotificationListenerService {
                                 ClipData clip = ClipData.newPlainText("LengJiao", clipText);
                                 cb.setPrimaryClip(clip);
                             });
+                        } else if (msg.equals("CMD:CHECK_PERMISSIONS")) {
+                            boolean hasSms = checkSelfPermission(android.Manifest.permission.READ_SMS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                            sendToPc("PERM_STATUS:" + (hasSms ? "OK" : "FAIL"));
+                        } else if (msg.equals("CMD:REQUEST_MANUAL_PERMISSIONS")) {
+                            android.content.Intent intent = new android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            intent.setData(android.net.Uri.parse("package:" + getPackageName()));
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } else if (msg.equals("CMD:SYNC_ALL")) {
+                            syncMedia();
+                            syncSms();
+                            syncApps();
+                        } else if (msg.startsWith("CMD:MEDIA_")) {
+                            handleMediaCmd(msg.substring(4));
                         }
                     }
                 }
@@ -160,5 +174,94 @@ public class HelperService extends NotificationListenerService {
             } catch (Exception e) {
             }
         }
+    }
+
+    private void syncSms() {
+        new Thread(() -> {
+            try {
+                android.database.Cursor cursor = getContentResolver().query(android.net.Uri.parse("content://sms/inbox"), null, null, null, "date DESC LIMIT 50");
+                if (cursor != null) {
+                    while (cursor.moveToNext()) {
+                        String address = cursor.getString(cursor.getColumnIndexOrThrow("address"));
+                        String body = cursor.getString(cursor.getColumnIndexOrThrow("body"));
+                        long date = cursor.getLong(cursor.getColumnIndexOrThrow("date"));
+                        sendToPc("SMS_DATA:" + address + "|" + date + "|" + body.replace("\n", " ").replace("|", " "));
+                    }
+                    cursor.close();
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
+    }
+
+    private void syncApps() {
+        new Thread(() -> {
+            try {
+                android.content.pm.PackageManager pm = getPackageManager();
+                java.util.List<android.content.pm.ApplicationInfo> packages = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA);
+                for (android.content.pm.ApplicationInfo packageInfo : packages) {
+                    if (pm.getLaunchIntentForPackage(packageInfo.packageName) != null) {
+                        String appName = pm.getApplicationLabel(packageInfo).toString();
+                        android.graphics.drawable.Drawable icon = pm.getApplicationIcon(packageInfo);
+                        
+                        android.graphics.Bitmap bitmap = null;
+                        if (icon instanceof android.graphics.drawable.BitmapDrawable) {
+                            bitmap = ((android.graphics.drawable.BitmapDrawable) icon).getBitmap();
+                        } else {
+                            bitmap = android.graphics.Bitmap.createBitmap(Math.max(icon.getIntrinsicWidth(), 1), Math.max(icon.getIntrinsicHeight(), 1), android.graphics.Bitmap.Config.ARGB_8888);
+                            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+                            icon.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                            icon.draw(canvas);
+                        }
+                        
+                        android.graphics.Bitmap resized = android.graphics.Bitmap.createScaledBitmap(bitmap, 48, 48, true);
+                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                        resized.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, baos);
+                        byte[] b = baos.toByteArray();
+                        String base64Icon = android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP);
+                        
+                        sendToPc("APP_DATA:" + packageInfo.packageName + "|" + appName + "|" + base64Icon);
+                    }
+                }
+            } catch (Exception e) { e.printStackTrace(); }
+        }).start();
+    }
+
+    private void syncMedia() {
+        try {
+            android.media.session.MediaSessionManager msm = (android.media.session.MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE);
+            java.util.List<android.media.session.MediaController> controllers = msm.getActiveSessions(new android.content.ComponentName(this, HelperService.class));
+            if (controllers != null && controllers.size() > 0) {
+                android.media.session.MediaController mc = controllers.get(0);
+                android.media.MediaMetadata metadata = mc.getMetadata();
+                String title = metadata != null ? metadata.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) : "未知";
+                String artist = metadata != null ? metadata.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) : "未知";
+                if (title == null) title = "未知";
+                if (artist == null) artist = "未知";
+                
+                android.media.session.PlaybackState pbState = mc.getPlaybackState();
+                boolean isPlaying = pbState != null && pbState.getState() == android.media.session.PlaybackState.STATE_PLAYING;
+                
+                sendToPc("MEDIA_DATA:" + title.replace("|", " ") + "|" + artist.replace("|", " ") + "|" + (isPlaying ? "1" : "0"));
+            } else {
+                sendToPc("MEDIA_DATA:暂无播放|暂无|0");
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void handleMediaCmd(String cmd) {
+        try {
+            android.media.session.MediaSessionManager msm = (android.media.session.MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE);
+            java.util.List<android.media.session.MediaController> controllers = msm.getActiveSessions(new android.content.ComponentName(this, HelperService.class));
+            if (controllers != null && controllers.size() > 0) {
+                android.media.session.MediaController mc = controllers.get(0);
+                android.media.session.MediaController.TransportControls tc = mc.getTransportControls();
+                if ("MEDIA_PLAY".equals(cmd)) tc.play();
+                else if ("MEDIA_PAUSE".equals(cmd)) tc.pause();
+                else if ("MEDIA_NEXT".equals(cmd)) tc.skipToNext();
+                else if ("MEDIA_PREV".equals(cmd)) tc.skipToPrevious();
+                
+                handler.postDelayed(() -> syncMedia(), 500);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }

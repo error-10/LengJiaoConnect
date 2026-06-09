@@ -72,76 +72,122 @@
                 <BlurEffect Radius="0" x:Name="MainBlur" RenderingBias="Performance"/>
             </Grid.Effect>
             <Grid.RowDefinitions>
-                <RowDefinition Height="90"/>
+                <RowDefinition Height="120"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="60"/> 
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Margin="30,20,30,0">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
-                    <TextBlock Text="棱角互联" FontSize="26" FontWeight="Bold" Foreground="#E0E0E0"/>
-                    <TextBlock Text="LengJiao Connect" FontSize="12" Foreground="#888888" Margin="10,8,0,0" VerticalAlignment="Bottom"/>
-                </StackPanel>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <Grid Grid.Row="0" Height="40">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <TextBlock Text="棱角互联" FontSize="26" FontWeight="Bold" Foreground="#E0E0E0"/>
+                        <TextBlock Text="LengJiao Connect" FontSize="12" Foreground="#888888" Margin="10,8,0,0" VerticalAlignment="Bottom"/>
+                    </StackPanel>
 
-                <Border Name="StatusBarContainer" HorizontalAlignment="Center" VerticalAlignment="Center" Height="30" ClipToBounds="True" Opacity="0">
-                    <Grid MinWidth="150">
-                        <Grid>
-                            <Grid.RenderTransform>
-                                <TranslateTransform x:Name="TransFrame1" Y="0"/>
-                            </Grid.RenderTransform>
-                            <TextBlock Text="自动连接成功" Foreground="#4CAF50" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Border Name="StatusBarContainer" HorizontalAlignment="Center" VerticalAlignment="Center" Height="30" ClipToBounds="True" Opacity="0">
+                        <Grid MinWidth="150">
+                            <Grid>
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="TransFrame1" Y="0"/>
+                                </Grid.RenderTransform>
+                                <TextBlock Text="自动连接成功" Foreground="#4CAF50" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                            
+                            <Grid>
+                                <Grid.RenderTransform>
+                                    <TranslateTransform x:Name="TransFrame2" Y="30"/>
+                                </Grid.RenderTransform>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Path Data="M2,22 L22,22 L22,2 Z" Fill="#AAAAAA" Height="14" Width="14" Stretch="Uniform" Margin="0,0,10,0" ToolTip="信号"/>
+                                    <Path Name="IconStatusWifi" Data="M12.01,21.49 L23.64,7 C23.19,6.66 18.71,3 12,3 C5.28,3 0.81,6.66 0.36,7 L11.99,21.49 C11.99,21.49 12.01,21.51 12.01,21.49 Z" Fill="#AAAAAA" Height="14" Width="16" Stretch="Uniform" Margin="0,0,10,0" Visibility="Collapsed" ToolTip="WiFi"/>
+                                    <Path Name="IconStatusBT" Data="M17.71,7.71 L12,2 L12,9.58 L6.41,4 L5,5.41 L10.59,11 L5,16.59 L6.41,18 L12,12.41 L12,20 L17.71,14.29 L13.41,11 L17.71,7.71 Z M14,5.83 L15.88,7.71 L14,9.58 L14,5.83 Z M15.88,14.29 L14,16.17 L14,12.42 L15.88,14.29 Z" Fill="#AAAAAA" Height="14" Width="12" Stretch="Uniform" Margin="0,0,10,0" Visibility="Collapsed" ToolTip="蓝牙"/>
+                                    <Path Data="M15.67,4 L14,4 L14,2 L10,2 L10,4 L8.33,4 C7.6,4 7,4.6 7,5.33 L7,20.67 C7,21.4 7.6,22 8.33,22 L15.67,22 C16.4,22 17,21.4 17,20.67 L17,5.33 C17,4.6 16.4,4 15.67,4 Z" Fill="#AAAAAA" Height="14" Width="10" Stretch="Uniform" Margin="0,0,4,0"/>
+                                    <TextBlock Name="TxtStatusBattery" Text="--%" Foreground="#AAAAAA" FontSize="13" VerticalAlignment="Center" FontWeight="Bold"/>
+                                </StackPanel>
+                            </Grid>
                         </Grid>
-                        
-                        <Grid>
-                            <Grid.RenderTransform>
-                                <TranslateTransform x:Name="TransFrame2" Y="30"/>
-                            </Grid.RenderTransform>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Path Data="M2,22 L22,22 L22,2 Z" Fill="#AAAAAA" Height="14" Width="14" Stretch="Uniform" Margin="0,0,10,0" ToolTip="信号"/>
-                                <Path Name="IconStatusWifi" Data="M12.01,21.49 L23.64,7 C23.19,6.66 18.71,3 12,3 C5.28,3 0.81,6.66 0.36,7 L11.99,21.49 C11.99,21.49 12.01,21.51 12.01,21.49 Z" Fill="#AAAAAA" Height="14" Width="16" Stretch="Uniform" Margin="0,0,10,0" Visibility="Collapsed" ToolTip="WiFi"/>
-                                <Path Name="IconStatusBT" Data="M17.71,7.71 L12,2 L12,9.58 L6.41,4 L5,5.41 L10.59,11 L5,16.59 L6.41,18 L12,12.41 L12,20 L17.71,14.29 L13.41,11 L17.71,7.71 Z M14,5.83 L15.88,7.71 L14,9.58 L14,5.83 Z M15.88,14.29 L14,16.17 L14,12.42 L15.88,14.29 Z" Fill="#AAAAAA" Height="14" Width="12" Stretch="Uniform" Margin="0,0,10,0" Visibility="Collapsed" ToolTip="蓝牙"/>
-                                <Path Data="M15.67,4 L14,4 L14,2 L10,2 L10,4 L8.33,4 C7.6,4 7,4.6 7,5.33 L7,20.67 C7,21.4 7.6,22 8.33,22 L15.67,22 C16.4,22 17,21.4 17,20.67 L17,5.33 C17,4.6 16.4,4 15.67,4 Z" Fill="#AAAAAA" Height="14" Width="10" Stretch="Uniform" Margin="0,0,4,0"/>
-                                <TextBlock Name="TxtStatusBattery" Text="--%" Foreground="#AAAAAA" FontSize="13" VerticalAlignment="Center" FontWeight="Bold"/>
-                            </StackPanel>
-                        </Grid>
+                    </Border>
+                    
+                    <Button HorizontalAlignment="Right" VerticalAlignment="Center" Cursor="Hand" Click="BtnDeviceMenu_Click" Style="{StaticResource HeaderButtonStyle}" Padding="15,8" Background="#252526" BorderThickness="1" BorderBrush="#333333">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse Name="StatusDot" Width="10" Height="10" Fill="#555555" Margin="0,0,10,0"/>
+                            <Path Name="IconConnectionType" Fill="#AAAAAA" Height="14" Stretch="Uniform" Margin="0,0,6,0" Visibility="Collapsed"/>
+                            <TextBlock Name="TxtHeaderDeviceName" Text="未连接设备" FontSize="16" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,10,0"/>
+                            <TextBlock Text="▼" FontSize="10" Foreground="#888888" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <!-- 媒体控制卡片 -->
+                <Border Grid.Row="1" Background="#252526" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Margin="0,15,0,0" Padding="15,8" HorizontalAlignment="Center" Width="380">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Name="TxtMediaTitle" Text="暂无媒体播放" FontSize="14" FontWeight="Bold" Foreground="White" TextTrimming="CharacterEllipsis" Margin="0,0,0,2"/>
+                            <TextBlock Name="TxtMediaArtist" Text="等待同步..." FontSize="12" Foreground="#AAAAAA" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Content="⏮" Style="{StaticResource IconButtonStyle}" FontSize="16" Width="30" Height="30" Margin="0,0,10,0" Click="BtnMediaPrev_Click"/>
+                            <Button Name="BtnMediaPlayPause" Content="▶️" Style="{StaticResource IconButtonStyle}" FontSize="16" Width="30" Height="30" Margin="0,0,10,0" Click="BtnMediaPlayPause_Click"/>
+                            <Button Content="⏭" Style="{StaticResource IconButtonStyle}" FontSize="16" Width="30" Height="30" Click="BtnMediaNext_Click"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
-                
-                <Button HorizontalAlignment="Right" VerticalAlignment="Center" Cursor="Hand" Click="BtnDeviceMenu_Click" Style="{StaticResource HeaderButtonStyle}" Padding="15,8" Background="#252526" BorderThickness="1" BorderBrush="#333333">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Name="StatusDot" Width="10" Height="10" Fill="#555555" Margin="0,0,10,0"/>
-                        <Path Name="IconConnectionType" Fill="#AAAAAA" Height="14" Stretch="Uniform" Margin="0,0,6,0" Visibility="Collapsed"/>
-                        <TextBlock Name="TxtHeaderDeviceName" Text="未连接设备" FontSize="16" FontWeight="Bold" Foreground="#AAAAAA" Margin="0,0,10,0"/>
-                        <TextBlock Text="▼" FontSize="10" Foreground="#888888" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
             </Grid>
 
             <Grid Grid.Row="1" Margin="30,10,30,20">
                 
                 <Grid Name="PanelHomeButtons" Visibility="Visible">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="55*"/>
+                        <ColumnDefinition Width="45*"/>
                     </Grid.ColumnDefinitions>
                     
+                    <!-- 左侧：投屏大模块 -->
                     <Grid Grid.Column="0">
-                        <Button Content="投屏" Style="{StaticResource BigButtonStyle}" Name="BtnScreenCast" Click="BtnScreenCast_Click" Margin="20,20,20,60"/>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,25">
+                        <Button Content="投屏" Style="{StaticResource BigButtonStyle}" Name="BtnScreenCast" Click="BtnScreenCast_Click" Margin="0,0,10,0"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,10,25">
                             <Button Name="BtnToggleScreenMode" Content="💡 保持亮屏" Style="{StaticResource HeaderButtonStyle}" Background="#1A1A1A" Foreground="#AAAAAA" BorderThickness="1" BorderBrush="#333333" FontSize="12" Margin="0,0,10,0" Click="BtnToggleScreenMode_Click"/>
-                            <Button Content="⚙️ 设置" Style="{StaticResource HeaderButtonStyle}" Background="#1A1A1A" Foreground="#AAAAAA" BorderThickness="1" BorderBrush="#333333" FontSize="12" Click="BtnScrcpySettings_Click"/>
+                            <Button Content="⚙️ 投屏设置" Style="{StaticResource HeaderButtonStyle}" Background="#1A1A1A" Foreground="#AAAAAA" BorderThickness="1" BorderBrush="#333333" FontSize="12" Click="BtnScrcpySettings_Click"/>
                         </StackPanel>
                     </Grid>
                     
-                    <Grid Grid.Column="1">
-                        <Button Content="文件传输" Style="{StaticResource BigButtonStyle}" Name="BtnFileTransfer" Click="BtnFileTransfer_Click" Margin="20,20,20,60"/>
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,25">
-                            <Button Content="⚙️ 传输设置" Style="{StaticResource HeaderButtonStyle}" Background="#1A1A1A" Foreground="#AAAAAA" BorderThickness="1" BorderBrush="#333333" FontSize="12" Click="BtnTransferSettings_Click"/>
-                        </StackPanel>
-                    </Grid>
-                    </Grid>
+                    <!-- 右侧：模块 -->
+                    <Grid Grid.Column="1" Margin="10,0,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
 
-                <Grid Name="PanelFileManager" Visibility="Collapsed" Background="#1E1E1E" Opacity="0">
+                        <!-- 应用 -->
+                        <Button Grid.Row="0" Grid.Column="0" Content="应用" Style="{StaticResource BigButtonStyle}" Name="BtnAppsDashboard" Click="BtnAppsDashboard_Click" FontSize="24" Background="#2A2A2D" Margin="0"/>
+                        
+                        <!-- 短信 -->
+                        <Button Grid.Row="0" Grid.Column="2" Content="短信" Style="{StaticResource BigButtonStyle}" Name="BtnSmsDashboard" Click="BtnSmsDashboard_Click" FontSize="24" Background="#2A2A2D" Margin="0"/>
+
+                        <!-- 文件传输 -->
+                        <Button Grid.Row="2" Grid.Column="0" Content="文件传输" Style="{StaticResource BigButtonStyle}" Name="BtnFileTransfer" Click="BtnFileTransfer_Click" FontSize="24" Background="#2A2A2D" Margin="0"/>
+
+                        <!-- 设置 -->
+                        <Button Grid.Row="2" Grid.Column="2" Content="设置" Style="{StaticResource BigButtonStyle}" Name="BtnTransferSettingsMain" Click="BtnTransferSettings_Click" FontSize="24" Background="#2A2A2D" Margin="0"/>
+                    </Grid>
+                </Grid>
+
+            <Grid Name="PanelFileManager" Visibility="Collapsed" Background="#1E1E1E" Opacity="0">
                     <Grid.RenderTransform>
                         <TranslateTransform x:Name="TransFileManager" Y="30"/>
                     </Grid.RenderTransform>
@@ -222,6 +268,69 @@
                         </StackPanel>
                     </Grid>
                 </Grid>
+
+                <Grid Name="PanelApps" Visibility="Collapsed" Background="#1E1E1E" Opacity="0">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="TransApps" Y="30"/>
+                    </Grid.RenderTransform>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="50"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Background="#252526">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0">
+                            <Button Content="← 返回" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Margin="0,0,10,0" Click="BtnExitApps_Click"/>
+                            <TextBlock Text="已安装应用列表" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
+                        </StackPanel>
+                    </Grid>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <WrapPanel Name="WrapApps" Margin="15" ItemWidth="100" ItemHeight="120" />
+                    </ScrollViewer>
+                </Grid>
+
+                <Grid Name="PanelSms" Visibility="Collapsed" Background="#1E1E1E" Opacity="0">
+                    <Grid.RenderTransform>
+                        <TranslateTransform x:Name="TransSms" Y="30"/>
+                    </Grid.RenderTransform>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="50"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Background="#252526">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0">
+                            <Button Content="← 返回" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Margin="0,0,10,0" Click="BtnExitSms_Click"/>
+                            <TextBlock Text="收件箱 (最近50条)" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
+                        </StackPanel>
+                    </Grid>
+                    <ListView Grid.Row="1" Name="ListSms" Background="Transparent" BorderThickness="0" Foreground="White" Margin="10">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#252526" CornerRadius="8" Padding="15" Margin="5,5,5,10" BorderBrush="#333333" BorderThickness="1">
+                                    <StackPanel>
+                                        <Grid>
+                                            <TextBlock Text="{Binding Address}" FontWeight="Bold" FontSize="16" Foreground="#4CAF50"/>
+                                            <TextBlock Text="{Binding DateStr}" HorizontalAlignment="Right" Foreground="#888888" FontSize="12"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Body}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="#DDDDDD" FontSize="14" LineHeight="20"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewItem">
+                                            <ContentPresenter/>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                    </ListView>
+                </Grid>
             </Grid>
         <Grid Grid.Row="2" Margin="30,0,30,20">
                 <StackPanel HorizontalAlignment="Left" VerticalAlignment="Bottom">
@@ -273,75 +382,87 @@
                     </Grid>
 
                     <Grid Name="PanelPrivacyPolicy" Visibility="Collapsed" Margin="0,15,0,0">
-                        <!-- 步骤1: 隐私协议和安装提示 -->
+                        <!-- 步骤1: 隐私协议和功能提示 -->
                         <StackPanel Name="PrivacyStep1">
-                            <TextBlock Text="🛡️ 隐私与授权声明" FontSize="20" FontWeight="Bold" Margin="0,0,0,15"/>
+                            <TextBlock Text="🛡️ 高级互联" FontSize="20" FontWeight="Bold" Margin="0,0,0,15"/>
                             <TextBlock TextWrapping="Wrap" Foreground="#CCCCCC" LineHeight="22" Margin="0,0,0,15">
-                                为了实现【手机通知实时推送到电脑】和【剪贴板双向互通】，我们需要在手机端安装一个专属的微型辅助应用（LengJiaoHelper）。
+                                为了实现高级互联的各项强大功能，我们需要在手机端安装一个极小的专属辅助应用（LengJiaoHelper）。
                                 <LineBreak/><LineBreak/>
-                                <Bold Foreground="White">软件会做什么：</Bold><LineBreak/>
-                                1. 本地拦截系统的剪贴板变化，并仅通过内部局域网加密隧道发送至当前连接的电脑。<LineBreak/>
-                                2. 本地读取应用通知内容，并仅发送至当前连接的电脑。
-                                <LineBreak/><LineBreak/>
-                                <Bold Foreground="White">软件不会做什么：</Bold><LineBreak/>
-                                1. 绝对不会连接任何外部服务器，不会上传任何隐私数据到云端。<LineBreak/>
-                                2. 没有任何广告，没有任何多余的后台唤醒行为，体积极小，省电无感。
+                                <Bold Foreground="White">即将使用的权限：</Bold><LineBreak/>
+                                1. <Bold>通知读取：</Bold>用于将手机实时通知投递到电脑。<LineBreak/>
+                                2. <Bold>短信读取：</Bold>用于在电脑端查看和管理收件箱。<LineBreak/>
+                                3. <Bold>应用列表读取：</Bold>用于在电脑端启动和管理手机应用。<LineBreak/>
+                                <LineBreak/>
+                                <Bold Foreground="#4CAF50">请放心：我们绝对不会上传您的任何隐私数据，所有通信均在本地局域网内进行。</Bold>
                             </TextBlock>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Content="拒绝" Style="{StaticResource HeaderButtonStyle}" Background="Transparent" Foreground="#AAAAAA" BorderThickness="0" Width="80" Margin="0,0,10,0" Click="BtnClosePopup_Click"/>
-                                <Button Name="BtnPrivacyAgree" Content="同意并安装" Style="{StaticResource HeaderButtonStyle}" Background="#4CAF50" Foreground="White" BorderThickness="0" Width="120" Click="BtnPrivacyAgree_Click"/>
+                                <Button Name="BtnPrivacyAgree" Content="下一步" Style="{StaticResource HeaderButtonStyle}" Background="#4CAF50" Foreground="White" BorderThickness="0" Width="120" Click="BtnPrivacyAgree_Click"/>
                             </StackPanel>
                         </StackPanel>
                         
-                        <!-- 步骤2: 安装成功，提示前往设置授权 -->
+                        <!-- 步骤2: 安装与自动配权 -->
                         <StackPanel Name="PrivacyStep2" Visibility="Collapsed">
-                            <TextBlock Text="🎉 辅助服务安装成功" FontSize="20" FontWeight="Bold" Foreground="#4CAF50" Margin="0,0,0,15"/>
-                            <TextBlock TextWrapping="Wrap" Foreground="#CCCCCC" LineHeight="22" Margin="0,0,0,20">
-                                辅助服务已成功部署至您的手机（无桌面图标）。
-                                <LineBreak/><LineBreak/>
-                                要让高级互联生效，我们必须在手机系统中为其授予<Bold Foreground="White">【读取应用通知】</Bold>的权限。
-                                <LineBreak/><LineBreak/>
-                                稍后将自动为您打开手机的权限设置页面，请找到<Bold Foreground="#4CAF50">【棱角互联助手】</Bold>并开启开关！
-                            </TextBlock>
+                            <TextBlock Name="TxtInstallStatus" Text="正在部署辅助服务..." FontSize="20" FontWeight="Bold" Foreground="#4CAF50" Margin="0,0,0,15"/>
+                            <ProgressBar Name="ProgInstall" IsIndeterminate="True" Height="4" Foreground="#4CAF50" Background="#333333" BorderThickness="0" Margin="0,0,0,20"/>
+                            
+                            <StackPanel Name="PanelPermissionChecklist" Visibility="Collapsed" Margin="0,0,0,20">
+                                <TextBlock Text="正在尝试自动配权：" Foreground="White" Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Name="IconPermNotif" Text="⏳" Width="25"/>
+                                    <TextBlock Text="通知读取" Foreground="#CCCCCC"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Name="IconPermSms" Text="⏳" Width="25"/>
+                                    <TextBlock Text="短信读取" Foreground="#CCCCCC"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Name="IconPermApp" Text="⏳" Width="25"/>
+                                    <TextBlock Text="应用列表读取" Foreground="#CCCCCC"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <TextBlock Name="TxtPermError" Text="" Foreground="#FF5555" TextWrapping="Wrap" Margin="0,0,0,20" Visibility="Collapsed"/>
+
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="稍后手动开启" Style="{StaticResource HeaderButtonStyle}" Background="Transparent" Foreground="#AAAAAA" BorderThickness="0" Width="120" Margin="0,0,10,0" Click="BtnClosePopup_Click"/>
-                                <Button Content="前往手机授权" Style="{StaticResource HeaderButtonStyle}" Background="#4CAF50" Foreground="White" BorderThickness="0" Width="130" Click="BtnPrivacyGoToSettings_Click"/>
+                                <Button Name="BtnPermManualContinue" Content="已手动开启，继续" Style="{StaticResource HeaderButtonStyle}" Background="#007ACC" Foreground="White" BorderThickness="0" Visibility="Collapsed" Click="BtnPermManualContinue_Click"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- 步骤3: 等待授权中 -->
+                        <!-- 步骤3: 缓存数据 -->
                         <StackPanel Name="PrivacyStep3" Visibility="Collapsed" VerticalAlignment="Center">
+                            <TextBlock Text="正在缓存短信与应用列表..." FontSize="20" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" Margin="0,0,0,15"/>
                             <ProgressBar IsIndeterminate="True" Width="200" Height="4" Foreground="#4CAF50" Background="#333333" BorderThickness="0" Margin="0,0,0,20"/>
-                            <TextBlock Text="正在等待您在手机端完成授权..." FontSize="16" Foreground="White" HorizontalAlignment="Center" Margin="0,0,0,10"/>
-                            <TextBlock Text="请在弹出的手机界面中，开启【棱角互联助手】的开关" FontSize="14" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
-                            <Button Content="取消等待" Style="{StaticResource HeaderButtonStyle}" Background="Transparent" Foreground="#AAAAAA" BorderThickness="0" HorizontalAlignment="Center" Margin="0,20,0,0" Click="BtnClosePopup_Click"/>
+                            <TextBlock Text="⚠️ 注意，我们不会上传您的数据，仅提升电脑端加载效率。" FontSize="14" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
                         </StackPanel>
 
                         <!-- 步骤4: 成功开启 -->
                         <StackPanel Name="PrivacyStep4" Visibility="Collapsed" VerticalAlignment="Center">
-                            <TextBlock Text="✨ 高级互联已成功开启！" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" Margin="0,0,0,15"/>
-                            <TextBlock Text="现在，您的剪贴板和系统通知已经与电脑无缝打通！" FontSize="14" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,30"/>
-                            <Button Content="完成" Style="{StaticResource HeaderButtonStyle}" Background="#4CAF50" Foreground="White" BorderThickness="0" Width="120" HorizontalAlignment="Center" Click="BtnClosePopup_Click"/>
+                            <TextBlock Text="✨ 缓存成功，高级互联已启用！" FontSize="24" FontWeight="Bold" Foreground="#4CAF50" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                            <Button Content="进入高级互联" Style="{StaticResource HeaderButtonStyle}" Background="#4CAF50" Foreground="White" BorderThickness="0" Width="140" HorizontalAlignment="Center" Margin="0,20,0,0" Click="BtnEnterAdvanced_Click"/>
                         </StackPanel>
                     </Grid>
 
                     <Grid Name="PanelAdvancedSettings" Visibility="Collapsed" Margin="0,15,0,0">
                         <StackPanel>
-                            <TextBlock Text="✨ 高级互联设置" FontSize="20" FontWeight="Bold" Margin="0,0,0,15"/>
-                            <TextBlock TextWrapping="Wrap" Foreground="#AAAAAA" Margin="0,0,0,20" LineHeight="20">
-                                💡 <Bold>提示：</Bold>如果遇到通知风暴，请将发起连环通知的应用在手机上设为“静音通知”。受安卓系统安全限制，目前手机剪贴板无法自动读取并同步到电脑，但电脑的剪贴板依然可以单向推送给手机使用。
-                            </TextBlock>
+                            <TextBlock Text="✨ 高级互联" FontSize="20" FontWeight="Bold" Margin="0,0,0,15"/>
                             
-                            <!-- 选项开关 -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <CheckBox Name="ChkSyncClipboard" Content="启用电脑到手机的单向剪贴板同步" IsChecked="True" Foreground="White" FontSize="14" Checked="ChkAdvancedOption_Changed" Unchecked="ChkAdvancedOption_Changed"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                                <CheckBox Name="ChkSyncNotifications" Content="启用手机非静音通知推送到电脑" IsChecked="True" Foreground="White" FontSize="14" Checked="ChkAdvancedOption_Changed" Unchecked="ChkAdvancedOption_Changed"/>
-                            </StackPanel>
+
+                            <!-- 功能开关 -->
+                            <TextBlock Text="功能开关" Foreground="#AAAAAA" Margin="0,0,0,10"/>
+                            <Border Background="#1E1E1E" CornerRadius="8" Padding="15" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <CheckBox Name="ChkSyncSms" Content="允许在电脑端读取和管理短信" IsChecked="True" Foreground="White" FontSize="14" Margin="0,0,0,10" Checked="ChkAdvancedOption_Changed" Unchecked="ChkAdvancedOption_Changed"/>
+                                    <CheckBox Name="ChkSyncApps" Content="允许在电脑端读取和启动手机应用" IsChecked="True" Foreground="White" FontSize="14" Margin="0,0,0,10" Checked="ChkAdvancedOption_Changed" Unchecked="ChkAdvancedOption_Changed"/>
+                                    <CheckBox Name="ChkSyncClipboard" Content="启用剪贴板跨端共享 (支持 PC 到手机)" IsChecked="True" Foreground="White" FontSize="14" Margin="0,0,0,10" Checked="ChkAdvancedOption_Changed" Unchecked="ChkAdvancedOption_Changed"/>
+                                    <CheckBox Name="ChkSyncMedia" Content="允许在电脑端同步并控制手机媒体播放" IsChecked="True" Foreground="White" FontSize="14" Checked="ChkAdvancedOption_Changed" Unchecked="ChkAdvancedOption_Changed"/>
+                                    <CheckBox Name="ChkSyncNotifications" Content="启用手机非静音通知推送到电脑" IsChecked="True" Foreground="White" FontSize="14" Checked="ChkAdvancedOption_Changed" Unchecked="ChkAdvancedOption_Changed"/>
+                                </StackPanel>
+                            </Border>
                             
-                            <Button Content="⚙️ 再次打开手机端权限设置" Style="{StaticResource HeaderButtonStyle}" Background="#1E1E1E" Foreground="#AAAAAA" BorderThickness="1" BorderBrush="#333333" Height="40" Margin="0,0,0,10" Click="BtnOpenPermissionSettings_Click"/>
-                            <Button Content="🗑️ 撤销授权并卸载服务" Style="{StaticResource HeaderButtonStyle}" Background="#331111" Foreground="#FF5555" BorderThickness="1" BorderBrush="#552222" Height="40" Click="BtnShowRevokeAuth_Click"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="⚙️ 打开权限设置" Style="{StaticResource HeaderButtonStyle}" Background="#252526" Foreground="#AAAAAA" BorderThickness="1" BorderBrush="#333333" Height="35" Margin="0,0,10,0" Click="BtnOpenPermissionSettings_Click"/>
+                                <Button Content="🗑️ 撤销授权并卸载" Style="{StaticResource HeaderButtonStyle}" Background="#331111" Foreground="#FF5555" BorderThickness="1" BorderBrush="#552222" Height="35" Click="BtnShowRevokeAuth_Click"/>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
 
@@ -454,7 +575,7 @@
                     </Grid>
                     <Grid Name="PanelTransferSettings" Visibility="Collapsed" Margin="0,15,0,0">
                         <StackPanel>
-                            <TextBlock Text="⚙️ 文件传输高级设置" FontSize="20" FontWeight="Bold" Margin="0,0,0,25"/>
+                            <TextBlock Text="⚙️ 全局与高级设置" FontSize="20" FontWeight="Bold" Margin="0,0,0,25"/>
                             <TextBlock Text="系统设置" Foreground="#AAAAAA" Margin="0,0,0,10"/>
                             <Button Name="BtnToggleAutoStart" Content="🚀 开机自动运行并在后台待命" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Foreground="White" BorderThickness="1" BorderBrush="#555555" Height="40" HorizontalContentAlignment="Left" Margin="0,0,0,25" Click="BtnToggleAutoStart_Click"/>
 
@@ -648,6 +769,26 @@
                 </Grid>
             </Border>
             
+            <Grid Name="SyncOverlay" Visibility="Collapsed" Panel.ZIndex="1000" Background="#E5151515">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="300" Height="4" Foreground="#4CAF50" Background="#333333" BorderThickness="0" Margin="0,0,0,20"/>
+                    <TextBlock Text="正在初次同步安卓设备数据，请耐心等待..." FontSize="18" Foreground="White" HorizontalAlignment="Center" FontWeight="Bold"/>
+                    <TextBlock Text="应用列表 / 短信 / 媒体控制" FontSize="14" Foreground="#888888" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Grid>
+            
+            <Grid Name="PermissionOverlay" Visibility="Collapsed" Panel.ZIndex="1000" Background="#E5151515">
+                <Border Background="#252526" BorderBrush="#333333" BorderThickness="1" CornerRadius="10" Width="450" Padding="30" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="⚠️ 自动配权失败" FontSize="20" FontWeight="Bold" Foreground="#FF5555" Margin="0,0,0,15" HorizontalAlignment="Center"/>
+                        <TextBlock Text="由于您的手机系统（魔改ROM）限制，ADB 自动提权失败。" FontSize="14" Foreground="#CCCCCC" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <TextBlock Text="已尝试在手机端为您唤起【权限设置页】，请在手机上手动允许以下权限：" FontSize="14" Foreground="#CCCCCC" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <TextBlock Text="• 读取短信/彩信&#x0a;• 读取所有应用列表" FontSize="14" Foreground="#4CAF50" FontWeight="Bold" Margin="0,0,0,20" LineHeight="20"/>
+                        <TextBlock Text="授权完成后，此窗口将自动关闭并继续同步。" FontSize="13" Foreground="#888888" HorizontalAlignment="Center"/>
+                        <ProgressBar IsIndeterminate="True" Width="200" Height="2" Foreground="#007ACC" Background="#333333" BorderThickness="0" Margin="0,20,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
     </Grid>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,15,10" Panel.ZIndex="100">
             <Button Background="Transparent" BorderThickness="0" Cursor="Hand" Margin="0,0,15,0" Click="BtnGithubLink_Click" ToolTip="访问 GitHub">

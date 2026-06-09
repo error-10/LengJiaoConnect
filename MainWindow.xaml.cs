@@ -216,6 +216,17 @@ namespace LengJiaoConnect
         _globalDeviceMonitor = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
         _globalDeviceMonitor.Tick += async (s, args) => await CheckDevicesAsync();
         _globalDeviceMonitor.Start();
+
+        // 3. 启动状态栏实时刷新 (15秒一次)
+        var statusRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        statusRefreshTimer.Tick += async (s, args) => 
+        {
+            if (!string.IsNullOrEmpty(_activeSerial))
+            {
+                await UpdateDeviceStatusAsync(_activeSerial);
+            }
+        };
+        statusRefreshTimer.Start();
     }
 
         // ================= 全局心脏监控 =================
@@ -573,7 +584,6 @@ namespace LengJiaoConnect
         private void Overlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) { HidePopup(); }
         private void BtnClosePopup_Click(object sender, RoutedEventArgs e) 
         { 
-            _isWaitingForPermission = false;
             HidePopup(); 
         }
         private void BtnToggleScreenMode_Click(object sender, RoutedEventArgs e)
@@ -619,8 +629,10 @@ namespace LengJiaoConnect
 
             if (isInstalled && _helperApkManager != null && _helperApkManager.IsRunning)
             {
+                // Set toggles to match state
                 ChkSyncClipboard.IsChecked = _helperApkManager.SyncClipboard;
                 ChkSyncNotifications.IsChecked = _helperApkManager.SyncNotifications;
+                // Read local preferences for SMS/Apps/Media? Actually let's just keep them in UI state.
                 ShowPopup(PanelAdvancedSettings);
             }
             else if (isInstalled)
@@ -639,62 +651,116 @@ namespace LengJiaoConnect
 
         private async void BtnPrivacyAgree_Click(object sender, RoutedEventArgs e)
         {
-            BtnPrivacyAgree.Content = "正在部署...";
-            BtnPrivacyAgree.IsEnabled = false;
+            ShowPrivacyStep(2);
+            BtnPermManualContinue.Visibility = Visibility.Collapsed;
+            TxtPermError.Visibility = Visibility.Collapsed;
+            PanelPermissionChecklist.Visibility = Visibility.Visible;
+            IconPermNotif.Text = "⏳";
+            IconPermSms.Text = "⏳";
+            IconPermApp.Text = "⏳";
+            TxtInstallStatus.Text = "正在部署辅助服务...";
+            ProgInstall.IsIndeterminate = true;
 
             if (_helperApkManager == null)
+            {
                 _helperApkManager = new HelperApkManager(this, _activeSerial);
+                BindHelperApkEvents();
+            }
 
             bool installed = await _helperApkManager.InstallAsync();
-            BtnPrivacyAgree.Content = "同意并安装";
-            BtnPrivacyAgree.IsEnabled = true;
-
-            if (installed)
+            if (!installed)
             {
-                ShowPrivacyStep(2);
+                TxtInstallStatus.Text = "部署失败，请检查设备连接。";
+                ProgInstall.IsIndeterminate = false;
+                return;
+            }
+
+            TxtInstallStatus.Text = "部署成功，正在尝试自动配权...";
+
+            // 1. Try SMS
+            string smsRes = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm grant com.lengjiao.helper android.permission.READ_SMS"));
+            if (string.IsNullOrWhiteSpace(smsRes)) IconPermSms.Text = "✅"; else IconPermSms.Text = "❌";
+
+            // 2. Try App List (No runtime permission needed if QUERY_ALL_PACKAGES is in manifest)
+            IconPermApp.Text = "✅";
+
+            // 3. Try Notification Listener
+            await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell cmd notification allow_listener com.lengjiao.helper/com.lengjiao.helper.HelperService"));
+            
+            // Check if granted
+            string enabledListeners = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell settings get secure enabled_notification_listeners"));
+            bool notifGranted = enabledListeners != null && enabledListeners.Contains("com.lengjiao.helper");
+            if (notifGranted) IconPermNotif.Text = "✅"; else IconPermNotif.Text = "❌";
+
+            if (IconPermSms.Text == "✅" && IconPermNotif.Text == "✅")
+            {
+                // Auto grant successful
+                await ProceedToStep3Cache();
             }
             else
             {
-                MessageBox.Show("辅助服务安装失败。请检查设备是否拦截了ADB安装请求。", "安装失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Auto grant failed
+                ProgInstall.IsIndeterminate = false;
+                TxtInstallStatus.Text = "自动配权未完全成功";
+                TxtPermError.Text = "由于系统限制，自动赋予权限失败。已尝试为您唤起权限设置页，请手动赋予【通知读取】和【短信/应用读取】权限。";
+                TxtPermError.Visibility = Visibility.Visible;
+                BtnPermManualContinue.Visibility = Visibility.Visible;
+                
+                // Open app details
+                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:com.lengjiao.helper"));
+                await Task.Delay(1000);
+                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
             }
         }
 
-        private async void BtnPrivacyGoToSettings_Click(object sender, RoutedEventArgs e)
+        private void BtnPermManualContinue_Click(object sender, RoutedEventArgs e)
         {
-            await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+            _ = ProceedToStep3Cache();
+        }
+
+        private async Task ProceedToStep3Cache()
+        {
             ShowPrivacyStep(3);
             
-            _isWaitingForPermission = true;
-            _ = WaitForPermissionAndConnectAsync();
-        }
-
-        private bool _isWaitingForPermission = false;
-        private async Task WaitForPermissionAndConnectAsync()
-        {
-            if (_helperApkManager == null)
-                _helperApkManager = new HelperApkManager(this, _activeSerial);
-
-            for (int i = 0; i < 30; i++) // wait up to 60s
+            // Wait for helper to connect
+            bool connected = false;
+            for (int i = 0; i < 5; i++)
             {
-                if (!_isWaitingForPermission) return; // User cancelled
-
-                bool connected = await _helperApkManager.ConnectAsync();
-                if (connected)
-                {
-                    Dispatcher.Invoke(() => {
-                        BtnAdvancedToggle.Content = "✨ 高级互联(已开启)";
-                        BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
-                        ShowPrivacyStep(4);
-                    });
-                    return;
-                }
-                await Task.Delay(2000);
+                connected = await _helperApkManager.ConnectAsync();
+                if (connected) break;
+                await Task.Delay(1000);
             }
 
+            if (!connected)
+            {
+                MessageBox.Show("无法连接到助手，请确保在手机上允许了助手运行。", "错误");
+                ShowPrivacyStep(2);
+                return;
+            }
+
+            // Tell helper to refresh apps and SMS
+            if (ChkSyncApps.IsChecked == true)
+            {
+                _helperApkManager.RequestAppList();
+            }
+            if (ChkSyncSms.IsChecked == true)
+            {
+                _helperApkManager.RequestSmsList();
+            }
+            
+            await Task.Delay(1500); // Give it some time to cache
+
             Dispatcher.Invoke(() => {
-                _isWaitingForPermission = false;
-                ShowPrivacyStep(2); // Fallback to asking them to authorize
+                BtnAdvancedToggle.Content = "✨ 高级互联(已开启)";
+                BtnAdvancedToggle.Background = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                ShowPrivacyStep(4);
             });
+        }
+
+        private void BtnEnterAdvanced_Click(object sender, RoutedEventArgs e)
+        {
+            HidePopup();
+            ShowPopup(PanelAdvancedSettings);
         }
 
         private void ChkAdvancedOption_Changed(object sender, RoutedEventArgs e)
@@ -703,6 +769,7 @@ namespace LengJiaoConnect
             {
                 _helperApkManager.SyncClipboard = ChkSyncClipboard.IsChecked == true;
                 _helperApkManager.SyncNotifications = ChkSyncNotifications.IsChecked == true;
+                // When toggled off, we could also clear the cache, but for now just let it be UI state.
             }
         }
 
@@ -749,7 +816,10 @@ namespace LengJiaoConnect
             if (packages.Contains("com.lengjiao.helper"))
             {
                 if (_helperApkManager == null)
+                {
                     _helperApkManager = new HelperApkManager(this, serial);
+                    BindHelperApkEvents();
+                }
                 
                 bool connected = await _helperApkManager.ConnectAsync();
                 
@@ -776,6 +846,203 @@ namespace LengJiaoConnect
                 });
             }
         }
+
+        private void BindHelperApkEvents()
+        {
+            if (_helperApkManager == null) return;
+            _helperApkManager.OnPermissionStatus -= OnPermissionStatusReceived;
+            _helperApkManager.OnPermissionStatus += OnPermissionStatusReceived;
+            
+            _helperApkManager.OnSmsData -= OnSmsDataReceived;
+            _helperApkManager.OnSmsData += OnSmsDataReceived;
+            
+            _helperApkManager.OnAppData -= OnAppDataReceived;
+            _helperApkManager.OnAppData += OnAppDataReceived;
+            
+            _helperApkManager.OnMediaData -= OnMediaDataReceived;
+            _helperApkManager.OnMediaData += OnMediaDataReceived;
+        }
+
+        private bool _isInitialSyncing = false;
+        private async void OnPermissionStatusReceived(string status)
+        {
+            if (status == "OK")
+            {
+                Dispatcher.Invoke(() => {
+                    PermissionOverlay.Visibility = Visibility.Collapsed;
+                    if (!_isInitialSyncing)
+                    {
+                        _isInitialSyncing = true;
+                        SyncOverlay.Visibility = Visibility.Visible;
+                        
+                        _smsList.Clear();
+                        ListSms.ItemsSource = _smsList;
+                        WrapApps.Children.Clear();
+                        
+                        _ = _helperApkManager.SendCmdAsync("CMD:SYNC_ALL");
+                        
+                        Task.Delay(5000).ContinueWith(_ => Dispatcher.Invoke(() => {
+                            SyncOverlay.Visibility = Visibility.Collapsed;
+                            _isInitialSyncing = false;
+                        }));
+                    }
+                });
+            }
+            else if (status == "FAIL")
+            {
+                Dispatcher.Invoke(() => {
+                    PermissionOverlay.Visibility = Visibility.Visible;
+                });
+                await _helperApkManager.SendCmdAsync("CMD:REQUEST_MANUAL_PERMISSIONS");
+                
+                await Task.Delay(2000);
+                await _helperApkManager.SendCmdAsync("CMD:CHECK_PERMISSIONS");
+            }
+        }
+        
+        public class SmsItem
+        {
+            public string Address { get; set; }
+            public string Body { get; set; }
+            public string DateStr { get; set; }
+        }
+        private System.Collections.ObjectModel.ObservableCollection<SmsItem> _smsList = new System.Collections.ObjectModel.ObservableCollection<SmsItem>();
+
+        private void OnSmsDataReceived(string address, long timestamp, string body)
+        {
+            Dispatcher.Invoke(() => {
+                string dateStr = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(timestamp).ToLocalTime().ToString("MM-dd HH:mm");
+                _smsList.Add(new SmsItem { Address = address, Body = body, DateStr = dateStr });
+            });
+        }
+
+        private void OnAppDataReceived(string pkg, string name, string b64Icon)
+        {
+            Dispatcher.Invoke(() => {
+                try
+                {
+                    var img = new Image { Width = 48, Height = 48, Margin = new Thickness(0, 0, 0, 8) };
+                    if (!string.IsNullOrEmpty(b64Icon))
+                    {
+                        byte[] bytes = Convert.FromBase64String(b64Icon);
+                        var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                        bmi.BeginInit();
+                        bmi.StreamSource = new System.IO.MemoryStream(bytes);
+                        bmi.EndInit();
+                        img.Source = bmi;
+                    }
+                    
+                    var txt = new TextBlock { Text = name, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis, TextAlignment = TextAlignment.Center, FontSize = 12 };
+                    var sp = new StackPanel { Margin = new Thickness(10), Width = 80 };
+                    sp.Children.Add(img);
+                    sp.Children.Add(txt);
+                    
+                    WrapApps.Children.Add(sp);
+                } catch { }
+            });
+        }
+
+        private void OnMediaDataReceived(string title, string artist, bool isPlaying)
+        {
+            Dispatcher.Invoke(() => {
+                TxtMediaTitle.Text = title;
+                TxtMediaArtist.Text = artist;
+                BtnMediaPlayPause.Content = isPlaying ? "⏸️" : "▶️";
+            });
+        }
+
+        private void BtnApps_Click(object sender, RoutedEventArgs e)
+        {
+            PanelHomeButtons.Visibility = Visibility.Collapsed;
+            PanelApps.Visibility = Visibility.Visible;
+            PanelApps.Opacity = 0;
+            TransApps.Y = 30;
+            
+            var fadeAnim = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.3));
+            var slideAnim = new DoubleAnimation(30, 0, TimeSpan.FromSeconds(0.3)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            
+            PanelApps.BeginAnimation(OpacityProperty, fadeAnim);
+            TransApps.BeginAnimation(TranslateTransform.YProperty, slideAnim);
+
+            if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:CHECK_PERMISSIONS");
+        }
+
+        private void BtnSms_Click(object sender, RoutedEventArgs e)
+        {
+            PanelHomeButtons.Visibility = Visibility.Collapsed;
+            PanelSms.Visibility = Visibility.Visible;
+            PanelSms.Opacity = 0;
+            TransSms.Y = 30;
+            
+            var fadeAnim = new DoubleAnimation(0, 1, TimeSpan.FromSeconds(0.3));
+            var slideAnim = new DoubleAnimation(30, 0, TimeSpan.FromSeconds(0.3)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+            
+            PanelSms.BeginAnimation(OpacityProperty, fadeAnim);
+            TransSms.BeginAnimation(TranslateTransform.YProperty, slideAnim);
+
+            if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:CHECK_PERMISSIONS");
+        }
+
+        private async void BtnAppsDashboard_Click(object sender, RoutedEventArgs e)
+        {
+            if (await EnsureAdvancedInteropAsync())
+            {
+                BtnApps_Click(null, null);
+            }
+        }
+
+        private async void BtnSmsDashboard_Click(object sender, RoutedEventArgs e)
+        {
+            if (await EnsureAdvancedInteropAsync())
+            {
+                BtnSms_Click(null, null);
+            }
+        }
+
+        private async Task<bool> EnsureAdvancedInteropAsync()
+        {
+            if (string.IsNullOrEmpty(_activeSerial))
+            {
+                MessageBox.Show("请先连接一台设备！", "提示");
+                return false;
+            }
+
+            string packages = await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell pm list packages"));
+            bool isInstalled = packages.Contains("com.lengjiao.helper");
+
+            if (isInstalled && _helperApkManager != null && _helperApkManager.IsRunning)
+            {
+                return true;
+            }
+            else if (isInstalled)
+            {
+                ShowPrivacyStep(2);
+                ShowPopup(PanelPrivacyPolicy);
+                return false;
+            }
+            else
+            {
+                ShowPrivacyStep(1);
+                ShowPopup(PanelPrivacyPolicy);
+                return false;
+            }
+        }
+
+        private void BtnExitApps_Click(object sender, RoutedEventArgs e) 
+        { 
+            PanelApps.Visibility = Visibility.Collapsed;
+            PanelHomeButtons.Visibility = Visibility.Visible;
+        }
+
+        private void BtnExitSms_Click(object sender, RoutedEventArgs e) 
+        { 
+            PanelSms.Visibility = Visibility.Collapsed;
+            PanelHomeButtons.Visibility = Visibility.Visible;
+        }
+
+        private void BtnMediaPrev_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:MEDIA_PREV"); }
+        private void BtnMediaPlayPause_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync(BtnMediaPlayPause.Content.ToString() == "▶️" ? "CMD:MEDIA_PAUSE" : "CMD:MEDIA_PLAY"); }
+        private void BtnMediaNext_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:MEDIA_NEXT"); }
 
         private void BtnScrcpySettings_Click(object sender, RoutedEventArgs e)
         {
@@ -1048,10 +1315,12 @@ namespace LengJiaoConnect
             TransFrame2.BeginAnimation(TranslateTransform.YProperty, slideUp2);
         }
 
+        private bool _isUpdatingStatus = false;
         private async Task UpdateDeviceStatusAsync(string serial)
         {
-            if (string.IsNullOrEmpty(serial)) return;
-
+            if (string.IsNullOrEmpty(serial) || _isUpdatingStatus) return;
+            
+            _isUpdatingStatus = true;
             try
             {
                 // ADB 抓取电量
@@ -1082,6 +1351,10 @@ namespace LengJiaoConnect
                 });
             }
             catch { }
+            finally
+            {
+                _isUpdatingStatus = false;
+            }
         }
    
     private async void BtnDisconnect_Click(object sender, RoutedEventArgs e)

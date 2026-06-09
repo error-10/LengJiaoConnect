@@ -35,10 +35,27 @@ namespace LengJiaoConnect
 
         public bool IsRunning => _isRunning;
 
+        public event Action<string> OnPermissionStatus;
+        public event Action<string, long, string> OnSmsData;
+        public event Action<string, string, string> OnAppData;
+        public event Action<string, string, bool> OnMediaData;
+
         public HelperApkManager(MainWindow mainWindow, string serial)
         {
             _mainWindow = mainWindow;
             _serial = serial;
+        }
+
+        public async Task SendCmdAsync(string cmd)
+        {
+            if (!_isRunning || _stream == null) return;
+            try
+            {
+                byte[] data = Encoding.UTF8.GetBytes(cmd);
+                await _stream.WriteAsync(data, 0, data.Length);
+                await _stream.FlushAsync();
+            }
+            catch { }
         }
 
         public async Task<bool> InstallAsync()
@@ -51,6 +68,10 @@ namespace LengJiaoConnect
             {
                 return false;
             }
+            
+            // 盲投授权 (针对比较开放的 ROM)
+            await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_serial} shell pm grant com.lengjiao.helper android.permission.READ_SMS"));
+            
             return true;
         }
 
@@ -144,6 +165,30 @@ namespace LengJiaoConnect
             catch { }
         }
 
+        public void RequestAppList()
+        {
+            if (!_isRunning || _stream == null) return;
+            try
+            {
+                byte[] data = Encoding.UTF8.GetBytes("REQ_APPS\n");
+                _stream.Write(data, 0, data.Length);
+                _stream.Flush();
+            }
+            catch { }
+        }
+
+        public void RequestSmsList()
+        {
+            if (!_isRunning || _stream == null) return;
+            try
+            {
+                byte[] data = Encoding.UTF8.GetBytes("REQ_SMS\n");
+                _stream.Write(data, 0, data.Length);
+                _stream.Flush();
+            }
+            catch { }
+        }
+
         private async Task ReadFromHelperAsync()
         {
             byte[] buffer = new byte[65536];
@@ -200,6 +245,32 @@ namespace LengJiaoConnect
                                     }
                                 });
                             }
+                        }
+                        else if (message.StartsWith("PERM_STATUS:"))
+                        {
+                            OnPermissionStatus?.Invoke(message.Substring(12));
+                        }
+                        else if (message.StartsWith("SMS_DATA:"))
+                        {
+                            string[] parts = message.Substring(9).Split('|');
+                            if (parts.Length >= 3)
+                            {
+                                long date = 0;
+                                long.TryParse(parts[1], out date);
+                                OnSmsData?.Invoke(parts[0], date, parts[2]);
+                            }
+                        }
+                        else if (message.StartsWith("APP_DATA:"))
+                        {
+                            string[] parts = message.Substring(9).Split(new[] { '|' }, 3);
+                            if (parts.Length >= 3)
+                                OnAppData?.Invoke(parts[0], parts[1], parts[2]);
+                        }
+                        else if (message.StartsWith("MEDIA_DATA:"))
+                        {
+                            string[] parts = message.Substring(11).Split(new[] { '|' }, 3);
+                            if (parts.Length >= 3)
+                                OnMediaData?.Invoke(parts[0], parts[1], parts[2] == "1");
                         }
                     }
                 }
