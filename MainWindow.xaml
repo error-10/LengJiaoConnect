@@ -401,6 +401,7 @@
                     </Grid.RenderTransform>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="50"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Background="#252526">
@@ -409,8 +410,23 @@
                             <TextBlock Text="已安装应用列表" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
                         </StackPanel>
                     </Grid>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Style="{StaticResource ModernScrollViewerStyle}">
-                        <WrapPanel Name="WrapApps" Margin="15" ItemWidth="100" ItemHeight="120" />
+                    
+                    <!-- Search Box -->
+                    <Border Grid.Row="1" Background="#2D2D30" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="15,10,15,0" Padding="5">
+                        <Grid>
+                            <TextBlock Text="🔍 搜索应用..." Foreground="#888888" VerticalAlignment="Center" Margin="10,0" Name="TxtAppSearchHint" IsHitTestVisible="False"/>
+                            <TextBox Name="TxtAppSearch" Background="Transparent" BorderThickness="0" Foreground="White" VerticalAlignment="Center" Margin="5,0" Padding="25,0,0,0" TextChanged="TxtAppSearch_TextChanged" GotFocus="TxtAppSearch_GotFocus" LostFocus="TxtAppSearch_LostFocus"/>
+                        </Grid>
+                    </Border>
+                    
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Style="{StaticResource ModernScrollViewerStyle}" Margin="0,5,0,0">
+                        <StackPanel Margin="15">
+                            <TextBlock Name="TxtRecentAppsLabel" Text="常用应用" Foreground="#888888" FontSize="14" FontWeight="Bold" Margin="0,0,0,10" Visibility="Collapsed"/>
+                            <WrapPanel Name="WrapRecentApps" ItemWidth="100" ItemHeight="120" Visibility="Collapsed" Margin="0,0,0,20"/>
+                            
+                            <TextBlock Name="TxtAllAppsLabel" Text="所有应用" Foreground="#888888" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <WrapPanel Name="WrapApps" ItemWidth="100" ItemHeight="120" />
+                        </StackPanel>
                     </ScrollViewer>
                 </Grid>
 
@@ -943,6 +959,7 @@
             </Grid>
     </Grid>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,15,10" Panel.ZIndex="100">
+            <TextBlock Name="TxtUpdateCheck" Text="检查更新中..." Foreground="#666666" FontSize="12" VerticalAlignment="Center" Margin="0,0,15,0"/>
             <Button Background="Transparent" BorderThickness="0" Cursor="Hand" Margin="0,0,15,0" Click="BtnGithubLink_Click" ToolTip="访问 GitHub">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">

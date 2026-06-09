@@ -197,14 +197,21 @@ namespace LengJiaoConnect
         private UIElement _previousPanelBeforeTutorial;
         private TranslateTransform _previousTransBeforeTutorial;
 
+        // ================= 常量定义 =================
+        private const string AppVersion = "3.0.0"; // 当前电脑端版本号
+
         public MainWindow()
         {
             InitializeComponent();
+            LoadAppHistory();
             this.Loaded += MainWindow_Loaded;
         }
 
        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        // 0. 自动检查更新
+        _ = CheckForUpdatesAsync();
+
         // 1. 尝试静默重连上次的设备
         string savedIp = LoadLastIp();
         if (!string.IsNullOrEmpty(savedIp))
@@ -240,6 +247,64 @@ namespace LengJiaoConnect
         };
         _mediaPollTimer.Start();
     }
+
+        private async Task CheckForUpdatesAsync()
+        {
+            try
+            {
+                using var client = new System.Net.Http.HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(10);
+                string html = await client.GetStringAsync("https://biu.miqwq.com/index.html");
+
+                string version = AppVersion;
+                var versionMatch = System.Text.RegularExpressions.Regex.Match(html, @"<div id=""version"">([^<]+)</div>");
+                if (versionMatch.Success) version = versionMatch.Groups[1].Value.Trim();
+
+                string poem = "";
+                var poemMatch = System.Text.RegularExpressions.Regex.Match(html, @"<div id=""poem"">([^<]+)</div>");
+                if (poemMatch.Success) poem = poemMatch.Groups[1].Value.Trim();
+
+                string expectedPoem = "北冥有鱼，其名为鲲，鲲之大，一锅炖不下";
+                
+                Dispatcher.Invoke(() => {
+                    if (poem != expectedPoem)
+                    {
+                        TxtUpdateCheck.Text = $"v{AppVersion}";
+                        TxtUpdateCheck.Foreground = new SolidColorBrush(Colors.Red);
+                        TxtUpdateCheck.ToolTip = "软件被篡改或验证失败";
+                        return;
+                    }
+
+                    if (Version.TryParse(version, out Version webV) && Version.TryParse(AppVersion, out Version appV) && webV > appV)
+                    {
+                        TxtUpdateCheck.Text = $"发现新版本: v{version}";
+                        TxtUpdateCheck.Foreground = new SolidColorBrush(Color.FromRgb(0, 122, 204));
+                        TxtUpdateCheck.TextDecorations = TextDecorations.Underline;
+                        TxtUpdateCheck.Cursor = Cursors.Hand;
+                        TxtUpdateCheck.MouseLeftButtonUp += (s, e) => {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "https://github.com/error-10/LengJiaoConnect/releases",
+                                UseShellExecute = true
+                            });
+                        };
+                    }
+                    else
+                    {
+                        TxtUpdateCheck.Text = $"v{AppVersion} 无更新";
+                        TxtUpdateCheck.Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102));
+                        TxtUpdateCheck.Cursor = Cursors.Arrow;
+                    }
+                });
+            }
+            catch
+            {
+                Dispatcher.Invoke(() => {
+                    TxtUpdateCheck.Text = $"v{AppVersion} (获取更新失败)";
+                });
+            }
+        }
+
 
         // ================= 全局心脏监控 =================
         private async Task CheckDevicesAsync()
@@ -959,30 +1024,160 @@ namespace LengJiaoConnect
             });
         }
 
+        private class AppItem
+        {
+            public required string PackageName { get; set; }
+            public required string AppName { get; set; }
+            public required string Base64Icon { get; set; }
+            public System.Windows.Media.Imaging.BitmapImage? IconImage { get; set; }
+        }
+
+        private List<AppItem> _allAppsList = new List<AppItem>();
+        private Dictionary<string, int> _appClickHistory = new Dictionary<string, int>();
+        private string _appHistoryPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_history.json");
+
+        private void LoadAppHistory()
+        {
+            try
+            {
+                if (System.IO.File.Exists(_appHistoryPath))
+                {
+                    string json = System.IO.File.ReadAllText(_appHistoryPath);
+                    var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(json);
+                    if (dict != null) _appClickHistory = dict;
+                }
+            }
+            catch { }
+        }
+
+        private void SaveAppHistory()
+        {
+            try
+            {
+                string json = System.Text.Json.JsonSerializer.Serialize(_appClickHistory);
+                System.IO.File.WriteAllText(_appHistoryPath, json);
+            }
+            catch { }
+        }
+
         private void OnAppDataReceived(string pkg, string name, string b64Icon)
         {
             Dispatcher.Invoke(() => {
                 try
                 {
-                    var img = new Image { Width = 48, Height = 48, Margin = new Thickness(0, 0, 0, 8) };
+                    // Check if exists
+                    if (_allAppsList.Any(a => a.PackageName == pkg)) return;
+
+                    System.Windows.Media.Imaging.BitmapImage? bmi = null;
                     if (!string.IsNullOrEmpty(b64Icon))
                     {
                         byte[] bytes = Convert.FromBase64String(b64Icon);
-                        var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                        bmi = new System.Windows.Media.Imaging.BitmapImage();
                         bmi.BeginInit();
                         bmi.StreamSource = new System.IO.MemoryStream(bytes);
                         bmi.EndInit();
-                        img.Source = bmi;
                     }
+
+                    _allAppsList.Add(new AppItem { PackageName = pkg, AppName = name, Base64Icon = b64Icon, IconImage = bmi });
                     
-                    var txt = new TextBlock { Text = name, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis, TextAlignment = TextAlignment.Center, FontSize = 12 };
-                    var sp = new StackPanel { Margin = new Thickness(10), Width = 80 };
-                    sp.Children.Add(img);
-                    sp.Children.Add(txt);
-                    
-                    WrapApps.Children.Add(sp);
+                    // Re-render
+                    RenderAppsList(TxtAppSearch.Text);
                 } catch { }
             });
+        }
+
+        private void RenderAppsList(string filter = "")
+        {
+            WrapApps.Children.Clear();
+            WrapRecentApps.Children.Clear();
+            
+            bool isSearching = !string.IsNullOrWhiteSpace(filter);
+            
+            var filteredApps = _allAppsList;
+            if (isSearching)
+            {
+                string lowerFilter = filter.ToLower();
+                filteredApps = _allAppsList.Where(a => a.AppName.ToLower().Contains(lowerFilter) || a.PackageName.ToLower().Contains(lowerFilter)).ToList();
+            }
+
+            // Populate all apps
+            foreach (var app in filteredApps)
+            {
+                WrapApps.Children.Add(CreateAppElement(app));
+            }
+
+            // Populate recent apps if not searching and we have history
+            if (!isSearching && _appClickHistory.Count > 0)
+            {
+                var recentPkgs = _appClickHistory.OrderByDescending(kv => kv.Value).Take(10).Select(kv => kv.Key).ToList();
+                var recentApps = _allAppsList.Where(a => recentPkgs.Contains(a.PackageName)).OrderByDescending(a => _appClickHistory[a.PackageName]).ToList();
+                
+                foreach (var app in recentApps)
+                {
+                    WrapRecentApps.Children.Add(CreateAppElement(app));
+                }
+                
+                TxtRecentAppsLabel.Visibility = recentApps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                WrapRecentApps.Visibility = recentApps.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
+            else
+            {
+                TxtRecentAppsLabel.Visibility = Visibility.Collapsed;
+                WrapRecentApps.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private UIElement CreateAppElement(AppItem app)
+        {
+            var img = new Image { Width = 48, Height = 48, Margin = new Thickness(0, 0, 0, 8), Source = app.IconImage };
+            var txt = new TextBlock { Text = app.AppName, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis, TextAlignment = TextAlignment.Center, FontSize = 12 };
+            var sp = new StackPanel { Margin = new Thickness(10), Width = 80, Cursor = Cursors.Hand };
+            sp.Children.Add(img);
+            sp.Children.Add(txt);
+            
+            sp.MouseLeftButtonUp += async (s, e) =>
+            {
+                // Update history
+                if (_appClickHistory.ContainsKey(app.PackageName)) _appClickHistory[app.PackageName]++;
+                else _appClickHistory[app.PackageName] = 1;
+                SaveAppHistory();
+                
+                // Launch app using monkey
+                await Task.Run(() => AdbHelper.ExecuteCommand($"-s {_activeSerial} shell monkey -p {app.PackageName} -c android.intent.category.LAUNCHER 1"));
+                
+                // Kill existing scrcpy if running
+                if (_runningScrcpyProcesses.TryGetValue(_activeSerial, out var existingProcess))
+                {
+                    if (existingProcess != null && !existingProcess.HasExited)
+                    {
+                        try { existingProcess.Kill(); } catch { }
+                    }
+                    _runningScrcpyProcesses.Remove(_activeSerial);
+                }
+                
+                await LaunchScrcpyAsync();
+            };
+            
+            return sp;
+        }
+
+        private void TxtAppSearch_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TxtAppSearchHint.Visibility = string.IsNullOrEmpty(TxtAppSearch.Text) ? Visibility.Visible : Visibility.Collapsed;
+            RenderAppsList(TxtAppSearch.Text);
+        }
+
+        private void TxtAppSearch_GotFocus(object sender, RoutedEventArgs e)
+        {
+            TxtAppSearchHint.Visibility = Visibility.Collapsed;
+        }
+
+        private void TxtAppSearch_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(TxtAppSearch.Text))
+            {
+                TxtAppSearchHint.Visibility = Visibility.Visible;
+            }
         }
 
         private void OnMediaDataReceived(string title, string artist, bool isPlaying)
@@ -1217,6 +1412,15 @@ namespace LengJiaoConnect
             string originalContent = BtnScreenCast.Content?.ToString() ?? "投屏";
             BtnScreenCast.Content = "启动中...";
 
+            await LaunchScrcpyAsync();
+
+            BtnScreenCast.Content = originalContent;
+            BtnScreenCast.IsEnabled = true;
+            HidePopup();
+        }
+
+        private async Task LaunchScrcpyAsync()
+        {
             try
             {
                 string scrcpyPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools", "scrcpy", "scrcpy.exe");
@@ -1305,11 +1509,6 @@ namespace LengJiaoConnect
             catch (Exception ex)
             {
                 MessageBox.Show($"启动投屏失败: {ex.Message}", "错误");
-            }
-            finally
-            {
-                BtnScreenCast.IsEnabled = true;
-                BtnScreenCast.Content = originalContent;
             }
         }
 
