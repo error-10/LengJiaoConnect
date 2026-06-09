@@ -39,6 +39,7 @@ namespace LengJiaoConnect
         public event Action<string, long, string> OnSmsData;
         public event Action<string, string, string> OnAppData;
         public event Action<string, string, bool> OnMediaData;
+        public event Action<string, string, bool, string, int, int> OnMediaDetailData;
 
         public HelperApkManager(MainWindow mainWindow, string serial)
         {
@@ -271,6 +272,17 @@ namespace LengJiaoConnect
                             string[] parts = message.Substring(11).Split(new[] { '|' }, 3);
                             if (parts.Length >= 3)
                                 OnMediaData?.Invoke(parts[0], parts[1], parts[2] == "1");
+                        }
+                        else if (message.StartsWith("MEDIA_DETAIL_DATA:"))
+                        {
+                            string[] parts = message.Substring(18).Split(new[] { '|' }, 6);
+                            if (parts.Length >= 6)
+                            {
+                                int currentVol = 0, maxVol = 0;
+                                int.TryParse(parts[4], out currentVol);
+                                int.TryParse(parts[5], out maxVol);
+                                OnMediaDetailData?.Invoke(parts[0], parts[1], parts[2] == "1", parts[3], currentVol, maxVol);
+                            }
                         }
                     }
                 }

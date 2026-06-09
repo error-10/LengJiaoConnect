@@ -16,6 +16,7 @@ namespace LengJiaoConnect
     public partial class MainWindow : Window
     {
         private DispatcherTimer _globalDeviceMonitor;
+        private DispatcherTimer _mediaSyncTimer;
         private bool _isOobeShowing = false;
         private System.Windows.Forms.NotifyIcon _notifyIcon;
         private bool _isRealExit = false; // 判断是真退出还是最小化到托盘
@@ -861,6 +862,9 @@ namespace LengJiaoConnect
             
             _helperApkManager.OnMediaData -= OnMediaDataReceived;
             _helperApkManager.OnMediaData += OnMediaDataReceived;
+            
+            _helperApkManager.OnMediaDetailData -= OnMediaDetailDataReceived;
+            _helperApkManager.OnMediaDetailData += OnMediaDetailDataReceived;
         }
 
         private bool _isInitialSyncing = false;
@@ -948,6 +952,45 @@ namespace LengJiaoConnect
                 TxtMediaTitle.Text = title;
                 TxtMediaArtist.Text = artist;
                 BtnMediaPlayPause.Content = isPlaying ? "⏸️" : "▶️";
+            });
+        }
+
+        private bool _isUpdatingVolume = false;
+        private void OnMediaDetailDataReceived(string title, string artist, bool isPlaying, string b64Art, int currentVol, int maxVol)
+        {
+            Dispatcher.Invoke(() => {
+                TxtMediaPopupTitle.Text = title;
+                TxtMediaPopupArtist.Text = artist;
+                BtnMediaPopupPlayPause.Content = isPlaying ? "⏸️" : "▶️";
+
+                // We also update the main bar
+                TxtMediaTitle.Text = title;
+                TxtMediaArtist.Text = artist;
+                BtnMediaPlayPause.Content = isPlaying ? "⏸️" : "▶️";
+
+                _isUpdatingVolume = true;
+                SliderMediaVolume.Maximum = maxVol > 0 ? maxVol : 15;
+                SliderMediaVolume.Value = currentVol;
+                _isUpdatingVolume = false;
+
+                try
+                {
+                    if (!string.IsNullOrEmpty(b64Art))
+                    {
+                        byte[] bytes = Convert.FromBase64String(b64Art);
+                        var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                        bmi.BeginInit();
+                        bmi.StreamSource = new System.IO.MemoryStream(bytes);
+                        bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        bmi.EndInit();
+                        ImgMediaAlbumArt.Source = bmi;
+                    }
+                    else
+                    {
+                        ImgMediaAlbumArt.Source = null;
+                    }
+                }
+                catch { }
             });
         }
 
@@ -1067,8 +1110,40 @@ namespace LengJiaoConnect
         }
 
         private void BtnMediaPrev_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:MEDIA_PREV"); }
-        private void BtnMediaPlayPause_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync(BtnMediaPlayPause.Content.ToString() == "▶️" ? "CMD:MEDIA_PAUSE" : "CMD:MEDIA_PLAY"); }
+        private void BtnMediaPlayPause_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync(BtnMediaPlayPause.Content.ToString() == "▶️" ? "CMD:MEDIA_PLAY" : "CMD:MEDIA_PAUSE"); }
         private void BtnMediaNext_Click(object sender, RoutedEventArgs e) { if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:MEDIA_NEXT"); }
+
+        private void BorderMedia_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_helperApkManager != null && _helperApkManager.IsRunning)
+            {
+                ShowPopup(PanelMediaPlayer);
+                
+                if (_mediaSyncTimer == null)
+                {
+                    _mediaSyncTimer = new DispatcherTimer();
+                    _mediaSyncTimer.Interval = TimeSpan.FromSeconds(1);
+                    _mediaSyncTimer.Tick += (s, args) =>
+                    {
+                        if (PanelMediaPlayer.Visibility == Visibility.Visible && _helperApkManager != null)
+                        {
+                            _ = _helperApkManager.SendCmdAsync("CMD:REQ_MEDIA_DETAIL");
+                        }
+                    };
+                }
+                _mediaSyncTimer.Start();
+                _ = _helperApkManager.SendCmdAsync("CMD:REQ_MEDIA_DETAIL");
+            }
+        }
+
+        private void SliderMediaVolume_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isUpdatingVolume) return;
+            if (_helperApkManager != null && _helperApkManager.IsRunning)
+            {
+                _ = _helperApkManager.SendCmdAsync($"CMD:SET_VOLUME_{(int)e.NewValue}");
+            }
+        }
 
         private void BtnScrcpySettings_Click(object sender, RoutedEventArgs e)
         {
@@ -1298,6 +1373,11 @@ namespace LengJiaoConnect
 
         private async void HidePopup()
         {
+            if (_mediaSyncTimer != null && _mediaSyncTimer.IsEnabled)
+            {
+                _mediaSyncTimer.Stop();
+            }
+
             var blurAnim = new DoubleAnimation(15, 0, TimeSpan.FromSeconds(0.2));
             MainBlur.BeginAnimation(BlurEffect.RadiusProperty, blurAnim);
 

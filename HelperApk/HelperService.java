@@ -82,6 +82,15 @@ public class HelperService extends NotificationListenerService {
                             syncApps();
                         } else if (msg.equals("CMD:REQ_SMS")) {
                             syncSms();
+                        } else if (msg.equals("CMD:REQ_MEDIA_DETAIL")) {
+                            syncMediaDetail();
+                        } else if (msg.startsWith("CMD:SET_VOLUME_")) {
+                            try {
+                                int vol = Integer.parseInt(msg.substring(15));
+                                android.media.AudioManager am = (android.media.AudioManager) getSystemService(android.content.Context.AUDIO_SERVICE);
+                                am.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, vol, 0);
+                                syncMediaDetail();
+                            } catch (Exception e) {}
                         } else if (msg.startsWith("CMD:MEDIA_")) {
                             handleMediaCmd(msg.substring(4));
                         }
@@ -248,6 +257,53 @@ public class HelperService extends NotificationListenerService {
                 sendToPc("MEDIA_DATA:" + title.replace("|", " ") + "|" + artist.replace("|", " ") + "|" + (isPlaying ? "1" : "0"));
             } else {
                 sendToPc("MEDIA_DATA:暂无播放|暂无|0");
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void syncMediaDetail() {
+        try {
+            android.media.AudioManager am = (android.media.AudioManager) getSystemService(android.content.Context.AUDIO_SERVICE);
+            int currentVol = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+            int maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+
+            android.media.session.MediaSessionManager msm = (android.media.session.MediaSessionManager) getSystemService(android.content.Context.MEDIA_SESSION_SERVICE);
+            java.util.List<android.media.session.MediaController> controllers = msm.getActiveSessions(new android.content.ComponentName(this, HelperService.class));
+            if (controllers != null && controllers.size() > 0) {
+                android.media.session.MediaController mc = controllers.get(0);
+                android.media.MediaMetadata metadata = mc.getMetadata();
+                String title = metadata != null ? metadata.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) : "未知";
+                String artist = metadata != null ? metadata.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) : "未知";
+                if (title == null) title = "未知";
+                if (artist == null) artist = "未知";
+                
+                android.media.session.PlaybackState pbState = mc.getPlaybackState();
+                boolean isPlaying = pbState != null && pbState.getState() == android.media.session.PlaybackState.STATE_PLAYING;
+
+                String base64Art = "";
+                if (metadata != null) {
+                    android.graphics.Bitmap art = metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART);
+                    if (art == null) art = metadata.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART);
+                    if (art != null) {
+                        int maxDim = 300;
+                        int width = art.getWidth();
+                        int height = art.getHeight();
+                        if (width > maxDim || height > maxDim) {
+                            float ratio = Math.min((float) maxDim / width, (float) maxDim / height);
+                            width = Math.round(ratio * width);
+                            height = Math.round(ratio * height);
+                            art = android.graphics.Bitmap.createScaledBitmap(art, width, height, true);
+                        }
+                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                        art.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, baos);
+                        byte[] b = baos.toByteArray();
+                        base64Art = android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP);
+                    }
+                }
+                
+                sendToPc("MEDIA_DETAIL_DATA:" + title.replace("|", " ") + "|" + artist.replace("|", " ") + "|" + (isPlaying ? "1" : "0") + "|" + base64Art + "|" + currentVol + "|" + maxVol);
+            } else {
+                sendToPc("MEDIA_DETAIL_DATA:暂无播放|暂无|0||" + currentVol + "|" + maxVol);
             }
         } catch (Exception e) { e.printStackTrace(); }
     }
