@@ -1081,33 +1081,36 @@ namespace LengJiaoConnect
         private System.Windows.Threading.DispatcherTimer _appsSyncDebounceTimer;
         private System.Windows.Threading.DispatcherTimer _appsPeriodicSyncTimer;
 
-        private void LoadAppCache()
+        private async void LoadAppCache()
         {
             try
             {
                 if (System.IO.File.Exists(_appsCachePath))
                 {
-                    string json = System.IO.File.ReadAllText(_appsCachePath);
+                    string json = await System.IO.File.ReadAllTextAsync(_appsCachePath);
                     var list = System.Text.Json.JsonSerializer.Deserialize<List<AppItem>>(json);
                     if (list != null)
                     {
-                        _allAppsList = list;
-                        foreach (var app in _allAppsList)
-                        {
-                            if (!string.IsNullOrEmpty(app.Base64Icon))
+                        await Task.Run(() => {
+                            foreach (var app in list)
                             {
-                                try {
-                                    byte[] bytes = Convert.FromBase64String(app.Base64Icon);
-                                    var bmi = new System.Windows.Media.Imaging.BitmapImage();
-                                    bmi.BeginInit();
-                                    bmi.StreamSource = new System.IO.MemoryStream(bytes);
-                                    bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                                    bmi.EndInit();
-                                    bmi.Freeze();
-                                    app.IconImage = bmi;
-                                } catch { }
+                                if (!string.IsNullOrEmpty(app.Base64Icon))
+                                {
+                                    try {
+                                        byte[] bytes = Convert.FromBase64String(app.Base64Icon);
+                                        var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                                        bmi.BeginInit();
+                                        bmi.StreamSource = new System.IO.MemoryStream(bytes);
+                                        bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                                        bmi.EndInit();
+                                        bmi.Freeze();
+                                        app.IconImage = bmi;
+                                    } catch { }
+                                }
                             }
-                        }
+                        });
+                        
+                        _allAppsList = list;
                     }
                 }
             }
@@ -1167,46 +1170,46 @@ namespace LengJiaoConnect
                 var appItem = new AppItem { PackageName = pkg, AppName = name, Base64Icon = b64Icon };
                 _tempAppsList.Add(appItem);
                 
-                // Reset debounce timer
                 _appsSyncDebounceTimer.Stop();
                 _appsSyncDebounceTimer.Start();
             });
         }
 
-        private void AppsSyncDebounceTimer_Tick(object? sender, EventArgs e)
+        private async void AppsSyncDebounceTimer_Tick(object? sender, EventArgs e)
         {
             _appsSyncDebounceTimer.Stop();
             
-            // Sync complete, save to cache and swap
             var newList = new List<AppItem>(_tempAppsList);
             _tempAppsList.Clear();
             
-            Task.Run(() => {
+            PanelAppsLoading.Visibility = Visibility.Visible;
+            if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = false;
+
+            await Task.Run(() => {
                 SaveAppCache(newList);
+                
+                foreach (var app in newList)
+                {
+                    if (!string.IsNullOrEmpty(app.Base64Icon) && app.IconImage == null)
+                    {
+                        try {
+                            byte[] bytes = Convert.FromBase64String(app.Base64Icon);
+                            var bmi = new System.Windows.Media.Imaging.BitmapImage();
+                            bmi.BeginInit();
+                            bmi.StreamSource = new System.IO.MemoryStream(bytes);
+                            bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                            bmi.EndInit();
+                            bmi.Freeze(); 
+                            app.IconImage = bmi;
+                        } catch { }
+                    }
+                }
             });
             
             _allAppsList = newList;
+            await RenderAppsListAsync(TxtAppSearch.Text);
             
-            // Process images
-            foreach (var app in _allAppsList)
-            {
-                if (!string.IsNullOrEmpty(app.Base64Icon) && app.IconImage == null)
-                {
-                    try {
-                        byte[] bytes = Convert.FromBase64String(app.Base64Icon);
-                        var bmi = new System.Windows.Media.Imaging.BitmapImage();
-                        bmi.BeginInit();
-                        bmi.StreamSource = new System.IO.MemoryStream(bytes);
-                        bmi.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                        bmi.EndInit();
-                        bmi.Freeze(); // Crucial for cross-thread access
-                        app.IconImage = bmi;
-                    } catch { }
-                }
-            }
-            
-            RenderAppsList(TxtAppSearch.Text);
-            
+            PanelAppsLoading.Visibility = Visibility.Collapsed;
             if (BtnRefreshApps != null) BtnRefreshApps.IsEnabled = true;
             if (TxtAppsLoading != null) TxtAppsLoading.Visibility = Visibility.Collapsed;
         }
@@ -1223,7 +1226,6 @@ namespace LengJiaoConnect
             
             await _helperApkManager.SendCmdAsync("CMD:REQ_APPS");
             
-            // If phone doesn't respond in 3 seconds, timeout and re-enable button
             await Task.Delay(3000);
             Dispatcher.Invoke(() => {
                 if (_tempAppsList.Count == 0 && BtnRefreshApps != null)
@@ -1239,8 +1241,9 @@ namespace LengJiaoConnect
             _ = SyncAppsFromPhone();
         }
 
-        private void RenderAppsList(string filter = "")
+        private async Task RenderAppsListAsync(string filter = "")
         {
+            PanelAppsLoading.Visibility = Visibility.Visible;
             WrapApps.Children.Clear();
             WrapRecentApps.Children.Clear();
             
@@ -1253,10 +1256,15 @@ namespace LengJiaoConnect
                 filteredApps = _allAppsList.Where(a => a.AppName.ToLower().Contains(lowerFilter) || a.PackageName.ToLower().Contains(lowerFilter)).ToList();
             }
 
-            // Populate all apps
+            int count = 0;
             foreach (var app in filteredApps)
             {
                 WrapApps.Children.Add(CreateAppElement(app));
+                count++;
+                if (count % 15 == 0) 
+                {
+                    await Task.Delay(1);
+                }
             }
 
             // Populate recent apps if not searching and we have history
@@ -1278,6 +1286,8 @@ namespace LengJiaoConnect
                 TxtRecentAppsLabel.Visibility = Visibility.Collapsed;
                 WrapRecentApps.Visibility = Visibility.Collapsed;
             }
+            
+            PanelAppsLoading.Visibility = Visibility.Collapsed;
         }
 
         private UIElement CreateAppElement(AppItem app)
@@ -1314,10 +1324,10 @@ namespace LengJiaoConnect
             return sp;
         }
 
-        private void TxtAppSearch_TextChanged(object sender, TextChangedEventArgs e)
+        private async void TxtAppSearch_TextChanged(object sender, TextChangedEventArgs e)
         {
             TxtAppSearchHint.Visibility = string.IsNullOrEmpty(TxtAppSearch.Text) ? Visibility.Visible : Visibility.Collapsed;
-            RenderAppsList(TxtAppSearch.Text);
+            await RenderAppsListAsync(TxtAppSearch.Text);
         }
 
         private void TxtAppSearch_GotFocus(object sender, RoutedEventArgs e)
@@ -1342,7 +1352,7 @@ namespace LengJiaoConnect
             });
         }
 
-        private void BtnApps_Click(object sender, RoutedEventArgs e)
+        private async void BtnApps_Click(object sender, RoutedEventArgs e)
         {
             PanelHomeButtons.Visibility = Visibility.Collapsed;
             PanelApps.Visibility = Visibility.Visible;
@@ -1357,7 +1367,7 @@ namespace LengJiaoConnect
 
             if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:CHECK_PERMISSIONS");
             
-            RenderAppsList(TxtAppSearch.Text);
+            await RenderAppsListAsync(TxtAppSearch.Text);
         }
 
         private void BtnSms_Click(object sender, RoutedEventArgs e)

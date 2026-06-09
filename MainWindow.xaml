@@ -432,6 +432,13 @@
                             <WrapPanel Name="WrapApps" ItemWidth="100" ItemHeight="120" />
                         </StackPanel>
                     </ScrollViewer>
+                    
+                    <Grid Grid.Row="2" Name="PanelAppsLoading" Background="#CC1E1E1E" Visibility="Collapsed">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ProgressBar IsIndeterminate="True" Width="100" Height="4" Foreground="#007ACC" Background="#333333" BorderThickness="0" Margin="0,0,0,15"/>
+                            <TextBlock Text="正在处理应用数据，请稍候..." Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
 
                 <Grid Name="PanelSms" Visibility="Collapsed" Background="#1E1E1E" Opacity="0">
