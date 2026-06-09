@@ -404,11 +404,46 @@
 
                             <TextBlock Text="特性开关" Foreground="#AAAAAA" Margin="0,0,0,10"/>
                             <Button Name="BtnToggleAudio" Content="🔊 开启音频同步 (需 Android 11+)" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Foreground="White" BorderThickness="1" BorderBrush="#555555" Height="40" HorizontalContentAlignment="Left" Margin="0,0,0,10" Click="BtnToggleAudio_Click"/>
-                            <Button Name="BtnToggleControl" Content="🖱️ 允许电脑控制手机 (键鼠操作)" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Foreground="White" BorderThickness="1" BorderBrush="#555555" Height="40" HorizontalContentAlignment="Left" Margin="0,0,0,25" Click="BtnToggleControl_Click"/>
+                            <Button Name="BtnToggleControl" Content="🖱️ 允许电脑控制手机 (键鼠操作)" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Foreground="White" BorderThickness="1" BorderBrush="#555555" Height="40" HorizontalContentAlignment="Left" Margin="0,0,0,10" Click="BtnToggleControl_Click"/>
+                            <StackPanel Margin="0,0,0,25">
+                                <Button Name="BtnToggleKeyboardMode" Content="⌨️ 键盘注入模式: 默认 (SDK API)" Style="{StaticResource HeaderButtonStyle}" Background="#333333" Foreground="White" BorderThickness="1" BorderBrush="#555555" Height="40" HorizontalContentAlignment="Left" Click="BtnToggleKeyboardMode_Click"/>
+                                <TextBlock FontSize="12" Margin="5,8,0,0" TextWrapping="Wrap">
+                                    <Run Text="💡 提示：如需使用键盘操作（包括方向键），请务必将电脑输入法切换至纯英文状态。" Foreground="#888888"/>
+                                    <Hyperlink Foreground="#007ACC" Click="BtnKeyboardHelp_Click" TextDecorations="Underline">为什么？</Hyperlink>
+                                </TextBlock>
+                            </StackPanel>
 
                             <Button Content="保存并应用" Style="{StaticResource HeaderButtonStyle}" Background="#007ACC" Foreground="White" Height="40" Click="BtnClosePopup_Click"/>
                         </StackPanel>
                     </Grid>
+                    <Grid Name="PanelKeyboardHelp" Visibility="Collapsed" Margin="0,5,0,0">
+                        <StackPanel>
+                            <TextBlock Text="❓ 为什么必须切换英文输入法？" FontSize="20" FontWeight="Bold" Margin="0,0,0,15"/>
+                            <TextBlock Foreground="#CCCCCC" TextWrapping="Wrap" LineHeight="22" Margin="0,0,0,20">
+                                <Run Text="这是因为 Windows 系统的底层机制！"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="只要你的电脑当前处于 "/>
+                                <Run Text="中文输入法" Foreground="#FF5555" FontWeight="Bold"/>
+                                <Run Text="（如微软拼音、搜狗），当你敲击字母甚至方向键时，这些按键信号会优先被电脑“截胡”用来准备合成汉字。因为信号在源头就被截断了，所以投屏引擎根本收不到任何按键指令！这和使用哪种注入模式无关。"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="✅ 唯一正确的打字姿势：" Foreground="#4CAF50" FontWeight="Bold"/>
+                                <LineBreak/>
+                                <Run Text="1. 在电脑上按下 " Foreground="White"/>
+                                <Run Text="Shift" FontWeight="Bold" Foreground="White"/>
+                                <Run Text=" 键切回英文，或者将输入法彻底切为纯英文（ENG）。"/>
+                                <LineBreak/>
+                                <Run Text="2. 此时按键会毫无阻拦地穿透进手机。如果想打中文，请在手机端直接使用手机自带的中文输入法！"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="💡 两种注入模式的区别：" Foreground="#007ACC" FontWeight="Bold"/>
+                                <LineBreak/>
+                                <Run Text="部分国产手机系统（或部分游戏）会从安全层面屏蔽 SDK 注入的按键。此时切换为 " Foreground="#AAAAAA"/>
+                                <Run Text="物理键盘 (UHID)" FontWeight="Bold" Foreground="White"/>
+                                <Run Text=" 模式，投屏引擎会向手机伪装成一把真实插入充电口的物理键盘，从而完美绕过安卓端的屏蔽检测。" Foreground="#AAAAAA"/>
+                            </TextBlock>
+                            <Button Content="明白了" Style="{StaticResource HeaderButtonStyle}" Background="#007ACC" Foreground="White" Height="40" Click="BtnCloseKeyboardHelp_Click"/>
+                        </StackPanel>
+                    </Grid>
+
                     <Grid Name="PanelNewItem" Visibility="Collapsed" Margin="0,15,0,0">
                         <StackPanel>
                             <TextBlock Text="新建项目" FontSize="20" FontWeight="Bold" Margin="0,0,0,15"/>

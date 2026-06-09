@@ -170,10 +170,14 @@ namespace LengJiaoConnect
         private int _scrcpyQualityLevel = 1; // 0:流畅 1:均衡 2:画质狂魔
         private bool _scrcpyEnableAudio = true;
         private bool _scrcpyEnableControl = true;
+        private bool _scrcpyUseUhidKeyboard = false; // 默认使用 SDK 键盘注入
         // 【新增】文件传输高级配置状态
         private bool _fmUseRoot = false;
         private bool _fmShowHidden = false;
         private HelperApkManager _helperApkManager;
+        
+        // 记录正在运行的投屏进程，防止重复多开
+        private Dictionary<string, System.Diagnostics.Process> _runningScrcpyProcesses = new Dictionary<string, System.Diagnostics.Process>();
 
         private string _configFilePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_ip.txt");
 
@@ -821,14 +825,61 @@ namespace LengJiaoConnect
             BtnToggleControl.Content = _scrcpyEnableControl ? "🖱️ 允许电脑控制手机 (键鼠操作)" : "👁️ 仅观影模式 (禁用电脑控制)";
         }
 
+        private void BtnToggleKeyboardMode_Click(object sender, RoutedEventArgs e)
+        {
+            _scrcpyUseUhidKeyboard = !_scrcpyUseUhidKeyboard;
+            BtnToggleKeyboardMode.Foreground = _scrcpyUseUhidKeyboard ? new SolidColorBrush(Color.FromRgb(76, 175, 80)) : new SolidColorBrush(Colors.White);
+            BtnToggleKeyboardMode.BorderBrush = _scrcpyUseUhidKeyboard ? new SolidColorBrush(Color.FromRgb(76, 175, 80)) : new SolidColorBrush(Color.FromRgb(85, 85, 85));
+            BtnToggleKeyboardMode.Content = _scrcpyUseUhidKeyboard ? "⌨️ 键盘注入模式: 物理键盘 (UHID内核级)" : "⌨️ 键盘注入模式: 默认 (SDK API)";
+        }
+
+        private void BtnKeyboardHelp_Click(object sender, RoutedEventArgs e)
+        {
+            ShowPopup(PanelKeyboardHelp);
+        }
+
+        private void BtnCloseKeyboardHelp_Click(object sender, RoutedEventArgs e)
+        {
+            // 关闭帮助弹窗后，直接切回投屏设置面板
+            ShowPopup(PanelScrcpySettings);
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr LoadKeyboardLayout(string pwszKLID, uint Flags);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr GetKeyboardLayout(uint idThread);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern IntPtr ActivateKeyboardLayout(IntPtr hkl, uint Flags);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+        private const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
+
         // --- 核心拉起投屏逻辑 ---
-        private void BtnScreenCast_Click(object sender, RoutedEventArgs e)
+        private async void BtnScreenCast_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(_activeSerial))
             {
                 MessageBox.Show("请先连接一台设备后再进行投屏！", "提示");
                 return;
             }
+
+            // 检查是否已经有一个投屏窗口在运行了
+            if (_runningScrcpyProcesses.TryGetValue(_activeSerial, out var existingProcess))
+            {
+                if (existingProcess != null && !existingProcess.HasExited)
+                {
+                    MessageBox.Show("该设备的投屏窗口已经在运行中，请勿重复开启！", "提示");
+                    return;
+                }
+            }
+
+            // 防重复点击保护
+            BtnScreenCast.IsEnabled = false;
+            string originalContent = BtnScreenCast.Content?.ToString() ?? "投屏";
+            BtnScreenCast.Content = "启动中...";
 
             try
             {
@@ -847,6 +898,7 @@ namespace LengJiaoConnect
                 if (_turnScreenOffCasting) args += " -S";
                 if (!_scrcpyEnableAudio) args += " --no-audio";
                 if (!_scrcpyEnableControl) args += " --no-control";
+                if (_scrcpyUseUhidKeyboard) args += " --keyboard=uhid";
 
                 // 3. 核心画质调度引擎 (极其硬核的参数注入)
                 if (_scrcpyQualityLevel == 0) 
@@ -856,17 +908,72 @@ namespace LengJiaoConnect
                 else if (_scrcpyQualityLevel == 2) 
                     args += " -b 24M --max-fps 120"; // 狂魔：24M 超高码率，解禁 120帧，压榨硬件极限
 
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                // 记录用户点击投屏前的原始输入法状态 (HKL)
+                IntPtr originalHkl = GetKeyboardLayout(0);
+
+                // 异步拉起进程，防止杀毒软件扫描或 ADB 守护进程启动导致的主窗口卡死
+                await Task.Run(() => 
                 {
-                    FileName = scrcpyPath,
-                    Arguments = args,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
+                    IntPtr hkl = IntPtr.Zero;
+                    try
+                    {
+                        // 先在当前线程获取美式英语键盘 (00000409) 的句柄
+                        hkl = LoadKeyboardLayout("00000409", 1);
+                    }
+                    catch { }
+
+                    var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = scrcpyPath,
+                        Arguments = args,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    });
+                    
+                    if (process != null)
+                    {
+                        process.EnableRaisingEvents = true;
+                        process.Exited += (s, ev) => 
+                        {
+                            // 投屏窗口关闭时，恢复到用户原本的输入法状态
+                            this.Dispatcher.Invoke(() => 
+                            {
+                                try { ActivateKeyboardLayout(originalHkl, 0); } catch { }
+                            });
+                        };
+
+                        // 注册到跟踪字典
+                        this.Dispatcher.Invoke(() => 
+                        {
+                            _runningScrcpyProcesses[_activeSerial] = process;
+                        });
+
+                        // 轮询等待 Scrcpy 创建出 SDL 游戏窗口
+                        while (process.MainWindowHandle == IntPtr.Zero && !process.HasExited)
+                        {
+                            System.Threading.Thread.Sleep(50);
+                            process.Refresh();
+                        }
+
+                        // 如果窗口创建成功，跨进程向 Scrcpy 窗口发送输入法切换指令 (WM_INPUTLANGCHANGEREQUEST)
+                        if (!process.HasExited && process.MainWindowHandle != IntPtr.Zero && hkl != IntPtr.Zero)
+                        {
+                            SendMessage(process.MainWindowHandle, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+                        }
+                    }
                 });
+
+                // 启动后给 1 秒冷却时间
+                await Task.Delay(1000);
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"启动投屏失败: {ex.Message}", "错误");
+            }
+            finally
+            {
+                BtnScreenCast.IsEnabled = true;
+                BtnScreenCast.Content = originalContent;
             }
         }
 
@@ -880,6 +987,7 @@ namespace LengJiaoConnect
             PanelPrivacyPolicy.Visibility = Visibility.Collapsed;
             PanelAdvancedSettings.Visibility = Visibility.Collapsed;
             PanelRevokeAuth.Visibility = Visibility.Collapsed;
+            PanelKeyboardHelp.Visibility = Visibility.Collapsed;
 
             // 单独让被点名的面板显示
             targetPanel.Visibility = Visibility.Visible;
