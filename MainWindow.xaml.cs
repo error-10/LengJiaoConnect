@@ -983,6 +983,20 @@ namespace LengJiaoConnect
             if (_helperApkManager != null) _ = _helperApkManager.SendCmdAsync("CMD:CHECK_PERMISSIONS");
         }
 
+        private void ListSms_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ListSms.SelectedItem is SmsItem item)
+            {
+                TxtSmsDetailSender.Text = item.Address;
+                TxtSmsDetailDate.Text = item.DateStr;
+                TxtSmsDetailBody.Text = item.Body;
+                
+                ShowPopup(PanelSmsDetail);
+                
+                ListSms.SelectedItem = null; // Clear selection so it can be clicked again
+            }
+        }
+
         private async void BtnAppsDashboard_Click(object sender, RoutedEventArgs e)
         {
             if (ChkSyncApps.IsChecked != true)

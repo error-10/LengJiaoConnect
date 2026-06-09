@@ -72,6 +72,65 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style TargetType="ScrollBar" x:Key="ModernScrollBarStyle">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Name="Bg" SnapsToDevicePixels="true" Background="Transparent">
+                            <Border Name="Track" Background="Transparent" />
+                            <Track Name="PART_Track" IsDirectionReversed="true" IsEnabled="{TemplateBinding IsMouseOver}">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="false"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="false"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Focusable="false" BorderThickness="0">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border CornerRadius="3" Background="#555555" Margin="2,0" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Orientation" Value="Horizontal">
+                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="false"/>
+                                <Setter TargetName="Track" Property="Margin" Value="0,2"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ScrollViewer" x:Key="ModernScrollViewerStyle">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <ScrollContentPresenter Grid.Column="0" Grid.Row="0" Margin="{TemplateBinding Padding}" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Style="{StaticResource ModernScrollBarStyle}" Grid.Column="1" Grid.Row="0" Value="{TemplateBinding VerticalOffset}" Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                            <ScrollBar x:Name="PART_HorizontalScrollBar" Style="{StaticResource ModernScrollBarStyle}" Orientation="Horizontal" Grid.Column="0" Grid.Row="1" Value="{TemplateBinding HorizontalOffset}" Maximum="{TemplateBinding ScrollableWidth}" ViewportSize="{TemplateBinding ViewportWidth}" Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="Button" x:Key="BigButtonStyle">
             <Setter Property="Background" Value="#252526"/>
             <Setter Property="Foreground" Value="White"/>
@@ -348,7 +407,7 @@
                             <TextBlock Text="已安装应用列表" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
                         </StackPanel>
                     </Grid>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Style="{StaticResource ModernScrollViewerStyle}">
                         <WrapPanel Name="WrapApps" Margin="15" ItemWidth="100" ItemHeight="120" />
                     </ScrollViewer>
                 </Grid>
@@ -367,16 +426,19 @@
                             <TextBlock Text="收件箱 (最近50条)" Foreground="White" FontSize="16" VerticalAlignment="Center" Margin="10,0"/>
                         </StackPanel>
                     </Grid>
-                    <ListView Grid.Row="1" Name="ListSms" Background="Transparent" BorderThickness="0" Foreground="White" Margin="10">
+                    <ListView Grid.Row="1" Name="ListSms" Background="Transparent" BorderThickness="0" Foreground="White" Margin="10" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="ListSms_SelectionChanged">
+                        <ListView.Resources>
+                            <Style TargetType="ScrollViewer" BasedOn="{StaticResource ModernScrollViewerStyle}"/>
+                        </ListView.Resources>
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="#252526" CornerRadius="8" Padding="15" Margin="5,5,5,10" BorderBrush="#333333" BorderThickness="1">
+                                <Border Background="#252526" CornerRadius="8" Padding="15" Margin="5,5,5,10" BorderBrush="#333333" BorderThickness="1" Cursor="Hand">
                                     <StackPanel>
                                         <Grid>
                                             <TextBlock Text="{Binding Address}" FontWeight="Bold" FontSize="16" Foreground="#4CAF50"/>
                                             <TextBlock Text="{Binding DateStr}" HorizontalAlignment="Right" Foreground="#888888" FontSize="12"/>
                                         </Grid>
-                                        <TextBlock Text="{Binding Body}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="#DDDDDD" FontSize="14" LineHeight="20"/>
+                                        <TextBlock Text="{Binding Body}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="0,8,0,0" Foreground="#DDDDDD" FontSize="14" LineHeight="20" MaxHeight="20"/>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
@@ -388,7 +450,9 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListViewItem">
-                                            <ContentPresenter/>
+                                            <Border Background="Transparent">
+                                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/>
+                                            </Border>
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>
@@ -546,6 +610,18 @@
                                 <Button Content="再想想" Style="{StaticResource HeaderButtonStyle}" Background="Transparent" Foreground="#AAAAAA" BorderThickness="0" Width="80" Margin="0,0,10,0" Click="BtnCancelRevoke_Click"/>
                                 <Button Content="坚决卸载" Style="{StaticResource HeaderButtonStyle}" Background="#331111" Foreground="#FF5555" BorderThickness="1" BorderBrush="#552222" Width="100" Click="BtnConfirmRevoke_Click"/>
                             </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Name="PanelSmsDetail" Visibility="Collapsed" Margin="0,15,0,0">
+                        <StackPanel>
+                            <TextBlock Name="TxtSmsDetailSender" Text="发件人" FontSize="18" FontWeight="Bold" Foreground="#4CAF50" Margin="0,0,0,5"/>
+                            <TextBlock Name="TxtSmsDetailDate" Text="日期" Foreground="#888888" FontSize="12" Margin="0,0,0,15"/>
+                            <Border Background="#1E1E1E" CornerRadius="8" Padding="15" MaxHeight="350">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource ModernScrollViewerStyle}">
+                                    <TextBlock Name="TxtSmsDetailBody" TextWrapping="Wrap" Foreground="#DDDDDD" FontSize="14" LineHeight="24" Text="短信内容"/>
+                                </ScrollViewer>
+                            </Border>
                         </StackPanel>
                     </Grid>
 
