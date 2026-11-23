@@ -578,6 +578,16 @@
                                     </Button>
                                     <Button x:Name="BtnStopCast" Classes="ghost" Content="停止投屏" Click="BtnStopCast_Click" />
                                     <Button x:Name="BtnDisconnect" Classes="danger" Content="断开连接" Click="BtnDisconnect_Click" />
+                                    <Button x:Name="BtnReboot" Classes="ghost" Content="重启">
+                                        <Button.Flyout>
+                                            <MenuFlyout>
+                                                <MenuItem Header="重启系统" Tag="reboot" Click="MenuReboot_Click" />
+                                                <MenuItem Header="重启到 Bootloader" Tag="reboot bootloader" Click="MenuReboot_Click" />
+                                                <MenuItem Header="重启到 Recovery" Tag="reboot recovery" Click="MenuReboot_Click" />
+                                                <MenuItem Header="重启到 EDL（高通）" Tag="reboot edl" Click="MenuReboot_Click" />
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -947,6 +957,10 @@
                                 </Grid>
                                 <Border Height="1" Background="#17222F" />
                                 <TextBlock x:Name="TxtHelperStatus" Classes="caption" Text="助手未安装" TextWrapping="Wrap" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                    <TextBlock x:Name="TxtPhoneUpdate" Classes="caption" Text="" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" x:Name="BtnPhoneUpdate" Classes="ghost" Content="更新助手" Click="BtnInstallHelper_Click" IsVisible="False" />
+                                </Grid>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button x:Name="BtnInstallHelper" Classes="primary" Content="安装 / 更新助手" Click="BtnInstallHelper_Click" />
                                     <Button x:Name="BtnRevokeHelper" Classes="danger" Content="停用助手" Click="BtnRevokeHelper_Click" />
@@ -958,7 +972,7 @@
                             <StackPanel Spacing="11">
                                 <TextBlock Classes="section" Text="关于" />
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                    <TextBlock x:Name="TxtVersion" Text="版本 3.2.1" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="TxtVersion" Text="版本 3.2.2" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Classes="ghost" Content="检查更新" Click="BtnCheckUpdate_Click" />
                                 </Grid>
                                 <TextBlock x:Name="TxtUpdateStatus" Classes="caption" Text="" TextWrapping="Wrap" />

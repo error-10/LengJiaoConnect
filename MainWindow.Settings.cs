@@ -24,7 +24,7 @@ public partial class MainWindow
     private const string RepoUrl = "https://github.com/error-10/LengJiaoConnect";
     private const string VersionUrl = "https://biu.miqwq.com/index.html";
     private const string ExpectedPoem = "北冥有鱼，其名为鲲，鲲之大，一锅炖不下";
-    private const string CurrentVersion = "3.2.1";
+    private const string CurrentVersion = "3.2.2";
 
     private void WireHelperEvents()
     {
@@ -180,6 +180,8 @@ public partial class MainWindow
         if (string.IsNullOrEmpty(_serial))
         {
             TxtHelperStatus.Text = "助手：未连接设备";
+            TxtPhoneUpdate.Text = "";
+            BtnPhoneUpdate.IsVisible = false;
             _helperInstalled = false;
             UpdateHomeHelper();
             return;
@@ -191,6 +193,7 @@ public partial class MainWindow
             if (!installed)
             {
                 TxtHelperStatus.Text = "助手未安装，点下面按钮安装。";
+                UpdatePhoneUpdateHint("");
                 _helperInstalled = false;
                 UpdateHomeHelper();
                 return;
@@ -199,15 +202,50 @@ public partial class MainWindow
             var version = await Adb.ShellTextAsync(_serial, "dumpsys package com.lengjiao.helper | grep versionName");
             var listeners = await Adb.ShellTextAsync(_serial, "settings get secure enabled_notification_listeners");
             var granted = listeners.Contains("com.lengjiao.helper");
-            TxtHelperStatus.Text = $"助手已安装{(version.Contains("versionName") ? " · " + version.Split('=').Last().Trim() : "")} · 通知监听{(granted ? "已授权" : "未授权")}";
+            var installedVer = version.Contains("versionName=") ? version.Split('=').Last().Trim() : "";
+            TxtHelperStatus.Text = $"助手已安装{(installedVer.Length > 0 ? " · " + installedVer : "")} · 通知监听{(granted ? "已授权" : "未授权")}";
             _helperInstalled = true;
             _helperNotif = granted;
+            UpdatePhoneUpdateHint(installedVer);
             UpdateHomeHelper();
         }
         catch (Exception ex)
         {
             TxtHelperStatus.Text = "读取助手状态失败：" + ex.Message;
         }
+    }
+
+    private static string ReadApkVersionName()
+    {
+        try
+        {
+            var manifest = Path.Combine(AppContext.BaseDirectory, "HelperApk", "AndroidManifest.xml");
+            if (!File.Exists(manifest)) return "";
+            var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(manifest), "android:versionName=\"([^\"]+)\"");
+            return m.Success ? m.Groups[1].Value : "";
+        }
+        catch { return ""; }
+    }
+
+    /// <summary>手机助手版本对照：装的比包旧就亮出“更新助手”。</summary>
+    private void UpdatePhoneUpdateHint(string installedVer)
+    {
+        var apkVer = ReadApkVersionName();
+        if (string.IsNullOrEmpty(apkVer))
+        {
+            TxtPhoneUpdate.Text = "";
+            BtnPhoneUpdate.IsVisible = false;
+            return;
+        }
+        if (string.IsNullOrEmpty(installedVer))
+        {
+            TxtPhoneUpdate.Text = $"手机助手未安装 · 可安装 {apkVer}";
+            BtnPhoneUpdate.IsVisible = true;
+            return;
+        }
+        var newer = Version.TryParse(installedVer, out var a) && Version.TryParse(apkVer, out var b) && b > a;
+        TxtPhoneUpdate.Text = newer ? $"手机助手 {installedVer} · 可更新到 {apkVer}" : $"手机助手 {installedVer} · 已是最新";
+        BtnPhoneUpdate.IsVisible = newer;
     }
 
     private string HelperApkPath => Path.Combine(AppContext.BaseDirectory, "HelperApk", "LengJiaoHelper.apk");
@@ -519,7 +557,7 @@ public partial class MainWindow
             if (Version.TryParse(remote, out var rv) && Version.TryParse(CurrentVersion, out var cv) && rv > cv)
                 TxtUpdateStatus.Text = $"发现新版本 {remote}（当前 {CurrentVersion}），点“检查更新”去下载。";
             else
-                TxtUpdateStatus.Text = silent ? "" : $"已是最新版本（{CurrentVersion}）。";
+                TxtUpdateStatus.Text = $"电脑版 {CurrentVersion} · 已是最新";
         }
         catch (Exception ex)
         {
