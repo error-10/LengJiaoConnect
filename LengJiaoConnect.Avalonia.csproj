@@ -14,11 +14,11 @@
 
   <ItemGroup>
     <!-- 仓库根下的旧式嵌套克隆不参与编译 -->
-    <Compile Remove="LengJiaoConnect\**" />
-    <AvaloniaXaml Remove="LengJiaoConnect\**" />
-    <Page Remove="LengJiaoConnect\**" />
-    <EmbeddedResource Remove="LengJiaoConnect\**" />
-    <None Remove="LengJiaoConnect\**" />
+    <Compile Remove="LengJiaoConnect\**;_local\**" />
+    <AvaloniaXaml Remove="LengJiaoConnect\**;_local\**" />
+    <Page Remove="LengJiaoConnect\**;_local\**" />
+    <EmbeddedResource Remove="LengJiaoConnect\**;_local\**" />
+    <None Remove="LengJiaoConnect\**;_local\**" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.3" />
