@@ -10,6 +10,9 @@ public sealed class DeviceInfo
     public DeviceState State { get; init; }
     public string Model { get; init; } = "";
 
+    /// <summary>是否当前正在控制的那台（设备浮层里显示勾选）。</summary>
+    public bool IsCurrent { get; set; }
+
     public bool IsOnline => State == DeviceState.Device;
     public bool IsWireless => Serial.Contains(':') || Serial.Count(c => c == '.') >= 3;
     public string DisplayName => string.IsNullOrWhiteSpace(Model) ? Serial : Model;

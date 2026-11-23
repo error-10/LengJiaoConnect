@@ -91,6 +91,12 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     {
         CreateTray();
         await PollDevicesAsync();
+        if (Environment.GetEnvironmentVariable("LJC_POPOVER") == "1") ToggleDevicePopover(true);
+        if (Environment.GetEnvironmentVariable("LJC_PAIR") == "1")
+        {
+            ToggleDevicePopover(true);
+            BtnPopoverPairToggle_Click(null, new Avalonia.Interactivity.RoutedEventArgs());
+        }
 
         _deviceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _deviceTimer.Tick += async (_, _) => await PollDevicesAsync();
@@ -273,7 +279,9 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         try
         {
             var list = await Adb.GetDevicesAsync();
-            var online = list.FirstOrDefault(d => d.IsOnline);
+            // 多台在线时，保持用户手动选中的那台，不要被“第一台”抢回去
+            var online = list.FirstOrDefault(d => d.IsOnline && d.Serial == _serial)
+                         ?? list.FirstOrDefault(d => d.IsOnline);
 
             if (online == null)
             {
@@ -334,6 +342,13 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         _device = device;
         _serial = device.Serial;
         ApplyDeviceUi(device);
+
+        if (device.IsWireless)
+        {
+            _settings.LastEndpoint = device.Serial;
+            SettingsStore.Save();
+            TxtLastEndpoint.Text = device.Serial;
+        }
 
         _helper = new HelperClient(device.Serial);
         WireHelperEvents();
@@ -512,19 +527,20 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         Toast("已断开");
     }
 
-    private void BtnWizard_Click(object? sender, RoutedEventArgs e)
+    /// <summary>取当前设备的 wlan0 IP，用于预填配对/连接地址。</summary>
+    private async Task<string> GetDeviceWlanIpAsync()
     {
-        PanelWizard.IsVisible = !PanelWizard.IsVisible;
-        if (!PanelWizard.IsVisible || string.IsNullOrEmpty(_serial)) return;
-
-        _ = Task.Run(async () =>
+        if (string.IsNullOrEmpty(_serial)) return "";
+        try
         {
             var ip = await Adb.ShellTextAsync(_serial, "ip route | awk '/wlan0/ {print $9; exit}'");
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                if (!string.IsNullOrWhiteSpace(ip)) TxtPairIp.Text = ip.Trim();
-            });
-        });
+            return ip.Trim();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("读取设备 IP 失败：" + ex.Message);
+            return "";
+        }
     }
 
     // ───────────────────────── 投屏 ─────────────────────────

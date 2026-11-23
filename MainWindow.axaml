@@ -225,6 +225,40 @@
             <Setter Property="Background" Value="#16FFFFFF" />
         </Style>
 
+        <!-- 顶栏设备胶囊：可点，点开设备浮层 -->
+        <Style Selector="Border.pill">
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="#0DFFFFFF" />
+            <Setter Property="BorderBrush" Value="#1A2836" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="13,7" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.16" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.pill:pointerover">
+            <Setter Property="Background" Value="#176FD3FF" />
+            <Setter Property="BorderBrush" Value="#336FD3FF" />
+        </Style>
+
+        <!-- 设备浮层里的一行 -->
+        <Style Selector="Button.deviceRow">
+            <Setter Property="Background" Value="#08FFFFFF" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10,9" />
+            <Setter Property="MinHeight" Value="54" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.deviceRow:pointerover">
+            <Setter Property="Background" Value="#146FD3FF" />
+            <Setter Property="BorderBrush" Value="#266FD3FF" />
+        </Style>
+
         <!-- 卡片 -->
         <Style Selector="Border.card">
             <Setter Property="Background" Value="{StaticResource CardBg}" />
@@ -418,8 +452,8 @@
                     <TextBlock x:Name="TxtPageTitle" Classes="h1" Text="概览" Margin="0" Padding="0" />
                     <TextBlock x:Name="TxtPageSub" Classes="caption" Text="设备、投屏与高级互联" Margin="0,4,0,0" Padding="0" />
                 </StackPanel>
-                <Border Grid.Column="1" CornerRadius="999" Background="#0DFFFFFF" BorderBrush="#1A2724" BorderThickness="1"
-                        Padding="13,7" VerticalAlignment="Center">
+                <Border x:Name="BtnDevicePill" Grid.Column="1" Classes="pill" Cursor="Hand" VerticalAlignment="Center"
+                        PointerPressed="BtnDevicePill_Click" ToolTip.Tip="连接或切换设备">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Ellipse x:Name="DotTop" Width="7" Height="7" Fill="#64758A" VerticalAlignment="Center" />
                         <TextBlock x:Name="TxtTopDevice" Text="未连接" FontSize="12.5" VerticalAlignment="Center" />
@@ -503,7 +537,6 @@
                                         </StackPanel>
                                     </Button>
                                     <Button x:Name="BtnStopCast" Classes="ghost" Content="停止投屏" Click="BtnStopCast_Click" />
-                                    <Button x:Name="BtnWizard" Classes="ghost" Content="连接向导" Click="BtnWizard_Click" />
                                     <Button x:Name="BtnDisconnect" Classes="danger" Content="断开连接" Click="BtnDisconnect_Click" />
                                 </StackPanel>
                             </Grid>
@@ -682,33 +715,6 @@
                             </Border><Button Classes="hitArea" Click="BtnQuickSettings_Click" /></Panel>
                         </Grid>
 
-                        <!-- 连接向导 -->
-                        <Border x:Name="PanelWizard" IsVisible="False" Classes="card">
-                            <StackPanel Spacing="11">
-                                <TextBlock Classes="section" Text="连接向导" />
-                                <StackPanel Orientation="Horizontal" Spacing="2">
-                                    <RadioButton x:Name="WizUsb" Classes="chip" GroupName="wiz" Content="USB" IsChecked="True" IsCheckedChanged="WizMode_Checked" />
-                                    <RadioButton x:Name="WizWifi" Classes="chip" GroupName="wiz" Content="无线调试" IsCheckedChanged="WizMode_Checked" />
-                                </StackPanel>
-                                <StackPanel x:Name="PanelWizUsb" Spacing="8">
-                                    <TextBlock Classes="caption" Text="手机开启开发者选项 → USB 调试，插线后会自动识别。" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <StackPanel x:Name="PanelWizWifi" Spacing="10" IsVisible="False">
-                                    <Grid ColumnDefinitions="*,110,Auto" ColumnSpacing="8">
-                                        <TextBox x:Name="TxtPairIp" Grid.Column="0" Watermark="手机 IP，如 192.168.31.80" />
-                                        <TextBox x:Name="TxtPairPort" Grid.Column="1" Watermark="配对端口" />
-                                        <Button x:Name="BtnPair" Grid.Column="2" Classes="ghost" Content="配对" Click="BtnPair_Click" />
-                                    </Grid>
-                                    <TextBox x:Name="TxtPairCode" Watermark="6 位配对码" Width="220" HorizontalAlignment="Left" />
-                                    <Grid ColumnDefinitions="*,110,Auto" ColumnSpacing="8">
-                                        <TextBox x:Name="TxtWifiIp" Grid.Column="0" Watermark="手机 IP" />
-                                        <TextBox x:Name="TxtWifiPort" Grid.Column="1" Watermark="端口" Text="5555" />
-                                        <Button x:Name="BtnConnectWifi" Grid.Column="2" Classes="primary" Content="连接" Click="BtnConnectWifi_Click" />
-                                    </Grid>
-                                </StackPanel>
-                                <TextBlock x:Name="TxtWizardStatus" Classes="caption" Text="" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -926,6 +932,88 @@
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
+        </Grid>
+
+        <!-- 设备浮层：点顶栏胶囊打开 -->
+        <Grid x:Name="DevicePopoverHost" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" ZIndex="30">
+            <Border Background="#01000000" PointerPressed="CloseDevicePopover" />
+            <Border x:Name="DevicePopover" Width="392" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,132,26,0"
+                    Background="#FF0D151F" BorderBrush="#2A3B4D" BorderThickness="1" CornerRadius="18" Padding="16"
+                    BoxShadow="0 22 54 0 #77000000">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <StackPanel Spacing="2">
+                            <TextBlock Classes="section" Text="设备" />
+                            <TextBlock x:Name="TxtPopoverHint" Classes="caption" Text="点一下切换要控制的那台" />
+                        </StackPanel>
+                        <Button Grid.Column="1" x:Name="BtnPopoverRefresh" Classes="roundIcon" Width="34" Height="34"
+                                VerticalAlignment="Center" Click="BtnPopoverRefresh_Click" ToolTip.Tip="刷新">
+                            <Path Width="15" Height="15" Stretch="Uniform" Stroke="{StaticResource InkDim}" StrokeThickness="1.6"
+                                  Data="M4,12 A8,8 0 1 1 6.4,17.8 M4,12 V7.6 M4,12 H8.4" />
+                        </Button>
+                    </Grid>
+
+                    <ScrollViewer x:Name="ScrollPopoverDevices" MaxHeight="252" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="6">
+                            <ItemsControl x:Name="ListPopoverDevices">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Classes="deviceRow" Click="PopoverDevice_Click">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                                <Grid Width="8" Height="8" VerticalAlignment="Center">
+                                                    <Ellipse Fill="#56D364" IsVisible="{Binding IsOnline}" />
+                                                    <Ellipse Fill="#64758A" IsVisible="{Binding !IsOnline}" />
+                                                </Grid>
+                                                <StackPanel Grid.Column="1" Spacing="2">
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="13.5" FontWeight="DemiBold"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Serial}" FontSize="10.5" Foreground="{StaticResource InkMute}"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <Border Background="#146FD3FF" CornerRadius="6" Padding="7,2" IsVisible="{Binding IsWireless}">
+                                                        <TextBlock Text="WiFi" FontSize="10.5" Foreground="{StaticResource Brand}" />
+                                                    </Border>
+                                                    <Border Background="#12FFFFFF" CornerRadius="6" Padding="7,2" IsVisible="{Binding !IsWireless}">
+                                                        <TextBlock Text="USB" FontSize="10.5" Foreground="{StaticResource InkDim}" />
+                                                    </Border>
+                                                    <Path Width="12" Height="12" Stretch="Uniform" Stroke="{StaticResource Brand}"
+                                                          StrokeThickness="2" Data="M3,8.2 L6.4,11.6 L13,4.4" IsVisible="{Binding IsCurrent}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock x:Name="TxtPopoverEmpty" Text="没有发现设备" Classes="caption" IsVisible="False" Margin="4,6" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Height="1" Background="#17222F" />
+
+                    <TextBlock Classes="overline" Text="无线连接" />
+                    <Grid ColumnDefinitions="*,78,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="TxtPopoverIp" Watermark="手机 IP" />
+                        <TextBox Grid.Column="1" x:Name="TxtPopoverPort" Text="5555" />
+                        <Button Grid.Column="2" x:Name="BtnPopoverConnect" Classes="primary" Content="连接" Click="BtnPopoverConnect_Click" />
+                    </Grid>
+                    <TextBlock x:Name="TxtPopoverStatus" Classes="caption" Text="" TextWrapping="Wrap" />
+                    <Button x:Name="BtnPopoverPairToggle" Classes="ghost" Content="新设备需要配对码？" HorizontalAlignment="Left" Click="BtnPopoverPairToggle_Click" />
+                    <StackPanel x:Name="PanelPopoverPair" Spacing="8" IsVisible="False">
+                        <TextBlock Classes="caption" TextWrapping="Wrap"
+                                   Text="手机：无线调试 → 使用配对码配对设备。按弹窗里的 IP、端口、6 位码填写，配对成功后会自动连接。" />
+                        <Grid ColumnDefinitions="*,110" ColumnSpacing="8">
+                            <TextBox x:Name="TxtPopoverPairIp" Watermark="配对 IP" />
+                            <TextBox Grid.Column="1" x:Name="TxtPopoverPairPort" Watermark="配对端口" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBox x:Name="TxtPopoverPairCode" Watermark="6 位配对码" MaxLength="6" />
+                            <Button Grid.Column="1" x:Name="BtnPopoverPairGo" Classes="primary" Content="配对并连接" Click="BtnPopoverPairGo_Click" />
+                        </Grid>
+                        <TextBlock x:Name="TxtPopoverPairStatus" Classes="caption" Text="" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- 浮层 -->
