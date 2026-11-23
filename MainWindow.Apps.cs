@@ -153,7 +153,17 @@ public partial class MainWindow
             app.LaunchCount = LaunchCount(app.PackageName);
             SaveLaunchCounts();
             RebuildRecent();
-            Toast("已在手机上打开 " + app.DisplayName);
+
+            // 点应用 = 手机上打开 + 电脑这边直接投出来（保持旧版行为）
+            if (!_scrcpy.IsRunning(_serial))
+            {
+                var casted = await _scrcpy.StartAsync(_serial, _settings);
+                Toast(casted ? $"已打开 {app.DisplayName}，正在投屏" : $"已打开 {app.DisplayName}，投屏没起来", !casted);
+            }
+            else
+            {
+                Toast("已在手机上打开 " + app.DisplayName);
+            }
         }
         catch (Exception ex)
         {
