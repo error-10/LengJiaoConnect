@@ -355,6 +355,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
 
         await UpdateDeviceStatusAsync(device.Serial);
         await RefreshHelperStatusAsync();
+        _ = MaybeOfferHelperAsync();
 
         // 连上设备就先拉一次目录，文件页打开时不再空白
         if (_files.Count == 0)

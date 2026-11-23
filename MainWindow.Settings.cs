@@ -177,20 +177,60 @@ public partial class MainWindow
 
     private string HelperApkPath => Path.Combine(AppContext.BaseDirectory, "HelperApk", "LengJiaoHelper.apk");
 
+    private readonly HashSet<string> _helperOffered = new(StringComparer.OrdinalIgnoreCase);
+
     private async void BtnInstallHelper_Click(object? sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(_serial)) { Toast("先连接设备", true); return; }
-        if (!File.Exists(HelperApkPath)) { Toast("找不到助手 APK：" + HelperApkPath, true); return; }
+        await InstallHelperAsync(interactive: true);
+    }
+
+    /// <summary>
+    /// 第一次连上一台手机时问一次：要不要装助手。装过的不再唠叨。
+    /// </summary>
+    private async Task MaybeOfferHelperAsync()
+    {
+        if (string.IsNullOrEmpty(_serial)) return;
+        if (!_helperOffered.Add(_serial)) return;
+
+        try
+        {
+            if (await Adb.IsInstalledAsync(_serial, "com.lengjiao.helper"))
+            {
+                if (_helper is { IsConnected: false }) await _helper.ConnectAsync();
+                await EnsureHelperPermissionsAsync(interactive: false);
+                return;
+            }
+
+            var install = await ConfirmAsync(
+                "安装互联助手？",
+                "剪贴板同步、通知转发、短信读取和应用列表，都靠手机上的这个小助手（约 200KB，装一次就行）。\n\n装好后它会用到两项权限：读取短信、通知使用权。",
+                "安装",
+                "以后再说");
+
+            if (install) await InstallHelperAsync(interactive: true);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("提示安装助手失败：" + ex.Message);
+        }
+    }
+
+    private async Task<bool> InstallHelperAsync(bool interactive)
+    {
+        if (string.IsNullOrEmpty(_serial)) { if (interactive) Toast("先连接设备", true); return false; }
+        if (!File.Exists(HelperApkPath)) { if (interactive) Toast("找不到助手 APK：" + HelperApkPath, true); return false; }
 
         BtnInstallHelper.IsEnabled = false;
-        Busy("正在安装助手…", true);
+        if (interactive) Busy("正在安装助手…", true);
         try
         {
             var r = await Adb.InstallApkAsync(_serial, HelperApkPath, allowDowngrade: true, grantPermissions: true);
             if (!r.Success)
             {
-                Toast("安装失败：" + r.Message, true);
-                return;
+                if (interactive) Toast("安装失败：" + r.Message, true);
+                Log.Warn("助手安装失败：" + r.Message);
+                return false;
             }
 
             await Adb.ShellAsync(_serial, "cmd notification allow_listener com.lengjiao.helper/com.lengjiao.helper.HelperService");
@@ -204,20 +244,53 @@ public partial class MainWindow
             }
             _helper = new HelperClient(_serial);
             WireHelperEvents();
+
             if (await _helper.ConnectAsync())
             {
                 await _helper.CheckPermissionAsync();
-                Toast("助手已就绪");
             }
-            else
+            else if (interactive)
             {
-                Toast("助手已安装，但连接失败：检查通知监听权限", true);
+                Toast("助手已安装，但还没连上——多半是通知监听没开。", true);
             }
+
+            await EnsureHelperPermissionsAsync(interactive);
+            return true;
         }
         finally
         {
-            Busy("", false);
+            if (interactive) Busy("", false);
             BtnInstallHelper.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// 装完之后把缺的权限补齐：短信能自动授，通知使用权有的系统得手动勾。
+    /// </summary>
+    private async Task EnsureHelperPermissionsAsync(bool interactive)
+    {
+        if (string.IsNullOrEmpty(_serial)) return;
+
+        try
+        {
+            var listeners = await Adb.ShellTextAsync(_serial, "settings get secure enabled_notification_listeners");
+            if (listeners.Contains("com.lengjiao.helper")) return;
+            if (!interactive) return;
+
+            var open = await ConfirmAsync(
+                "还差一个通知权限",
+                "在手机的「通知使用权」里勾选「棱角互联助手」，剪贴板和通知才会同步。要我现在把那个设置页打开吗？",
+                "打开设置",
+                "稍后我自己弄");
+
+            if (!open) return;
+
+            await Adb.ShellAsync(_serial, "am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS");
+            Toast("在手机上勾选「棱角互联助手」，回来就生效");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("检查助手权限失败：" + ex.Message);
         }
     }
 

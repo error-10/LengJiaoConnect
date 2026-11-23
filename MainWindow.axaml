@@ -1019,7 +1019,7 @@
         <!-- 浮层 -->
         <StackPanel x:Name="ToastStack" Grid.ColumnSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,26,24" Spacing="8" IsHitTestVisible="False" />
 
-        <Border x:Name="DropOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#B3060D0C" BorderBrush="#6FD3FF" BorderThickness="2" CornerRadius="20" Margin="22">
+        <Border x:Name="DropOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" Background="#B3060D0C" BorderBrush="#6FD3FF" BorderThickness="2" CornerRadius="20" Margin="22">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
                 <Path Width="40" Height="40" Stretch="Uniform" Fill="#6FD3FF" HorizontalAlignment="Center" Data="M12,3 V16 M6,10 L12,16 L18,10 M4,19 H20" Stroke="#6FD3FF" StrokeThickness="1" />
                 <TextBlock Text="松手上传" FontSize="24" FontWeight="DemiBold" HorizontalAlignment="Center" />
@@ -1027,8 +1027,8 @@
             </StackPanel>
         </Border>
 
-        <Grid x:Name="DialogOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#A6000000">
-            <Border Background="#101917" BorderBrush="#24322F" BorderThickness="1" CornerRadius="20" Padding="24" Width="430" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" Background="#A6000000">
+            <Border Background="#FF0D151F" BorderBrush="#2A3B4D" BorderThickness="1" CornerRadius="20" Padding="24" Width="430" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 24 60 0 #88000000">
                 <StackPanel Spacing="12">
                     <TextBlock x:Name="DialogTitle" FontSize="18" FontWeight="DemiBold" Text="提示" />
                     <TextBlock x:Name="DialogBody" TextWrapping="Wrap" Opacity="0.82" />
@@ -1041,7 +1041,7 @@
             </Border>
         </Grid>
 
-        <Border x:Name="BusyOverlay" Grid.ColumnSpan="2" IsVisible="False" Background="#A6000000">
+        <Border x:Name="BusyOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" Background="#A6000000">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
                 <TextBlock x:Name="TxtBusy" Text="处理中…" FontSize="15" />
             </StackPanel>
