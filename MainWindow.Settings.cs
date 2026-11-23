@@ -87,37 +87,63 @@ public partial class MainWindow
 
     private void SyncAutoStartCheckbox()
     {
-        var enabled = IsAutoStartEnabled();
+        var stored = ReadAutoStartValue();
+        var enabled = SamePath(stored, Environment.ProcessPath);
+
+        // 换了新版本、或者把目录挪了之后，旧的自启项还指着老路径：
+        // 直接改写成本次运行的 exe，不然开关显示“已开”，开机跑的却是老版本。
+        if (!enabled && !string.IsNullOrWhiteSpace(stored) && SetAutoStart(true)) enabled = true;
+
         _settings.AutoStart = enabled;
         ChkAutoStart.IsChecked = enabled;
     }
 
-    private static bool IsAutoStartEnabled()
+    private static string? ReadAutoStartValue()
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
-            return key?.GetValue(RunValueName) != null;
+            return key?.GetValue(RunValueName) as string;
         }
         catch (Exception ex)
         {
             Log.Warn("读自启注册表失败：" + ex.Message);
-            return false;
+            return null;
         }
     }
 
-    private static void SetAutoStart(bool enabled)
+    private static bool SamePath(string? stored, string? exe)
+    {
+        if (string.IsNullOrWhiteSpace(stored) || string.IsNullOrWhiteSpace(exe)) return false;
+        return string.Equals(stored.Trim().Trim('"'), exe.Trim().Trim('"'), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAutoStartEnabled() => SamePath(ReadAutoStartValue(), Environment.ProcessPath);
+
+    private static bool SetAutoStart(bool enabled)
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
-            if (key == null) return;
-            if (enabled) key.SetValue(RunValueName, "\"" + Environment.ProcessPath + "\"");
-            else key.DeleteValue(RunValueName, throwOnMissingValue: false);
+            if (key == null) return false;
+
+            if (enabled)
+            {
+                var exe = Environment.ProcessPath;
+                if (string.IsNullOrWhiteSpace(exe)) return false;
+                key.SetValue(RunValueName, "\"" + exe + "\"");
+            }
+            else
+            {
+                key.DeleteValue(RunValueName, throwOnMissingValue: false);
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
             Log.Warn("写自启注册表失败：" + ex.Message);
+            return false;
         }
     }
 
