@@ -367,6 +367,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         Log.Info("开始连接 helper…");
         var ok = await _helper.ConnectAsync();
         Log.Info("helper 连接结果：" + ok);
+        UpdateHomeHelper();
         if (ok)
         {
             try
@@ -605,7 +606,10 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     {
         Dispatcher.UIThread.Post(() =>
         {
+            _helperSms = sms;
+            _helperNotif = notif;
             TxtHelperStatus.Text = $"助手{(_helper?.IsConnected == true ? "已连接" : "未连接")} · 短信{(sms ? "已授权" : "未授权")} · 通知{(notif ? "已授权" : "未授权")}";
+            UpdateHomeHelper();
         });
     }
 

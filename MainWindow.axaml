@@ -10,14 +10,17 @@
                   ExtendClientAreaToDecorationsHint="True"
                   ExtendClientAreaTitleBarHeightHint="-1"
                   Icon="/Assets/app.ico"
-                  TransparencyLevelHint="None"
-                  Background="#FF0A0F17">
+                  TransparencyLevelHint="AcrylicBlur,Blur,Transparent"
+                  Background="Transparent">
 
     <suki:SukiWindow.Resources>
-        <SolidColorBrush x:Key="PageBg" Color="#E0060C13" />
-        <SolidColorBrush x:Key="RailBg" Color="#F20A1219" />
-        <SolidColorBrush x:Key="CardBg" Color="#E60D151F" />
-        <SolidColorBrush x:Key="CardBorder" Color="#2E9FB3C8" />
+        <SolidColorBrush x:Key="PageBg" Color="#D8060C13" />
+        <SolidColorBrush x:Key="RailBg" Color="#9C0A1219" />
+        <LinearGradientBrush x:Key="CardBg" StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#E80F1A27" />
+            <GradientStop Offset="1" Color="#D6091119" />
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="CardBorder" Color="#33FFFFFF" />
         <SolidColorBrush x:Key="Ink" Color="#EAF2FA" />
         <SolidColorBrush x:Key="InkDim" Color="#93A6BC" />
         <SolidColorBrush x:Key="InkMute" Color="#64758A" />
@@ -339,9 +342,9 @@
         <Border Grid.RowSpan="2" Grid.ColumnSpan="2" IsHitTestVisible="False">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                    <GradientStop Offset="0" Color="#FF070C14" />
-                    <GradientStop Offset="0.55" Color="#FF0A1018" />
-                    <GradientStop Offset="1" Color="#FF0D1622" />
+                    <GradientStop Offset="0" Color="#D8070C14" />
+                    <GradientStop Offset="0.55" Color="#D40A1018" />
+                    <GradientStop Offset="1" Color="#D80D1622" />
                 </LinearGradientBrush>
             </Border.Background>
         </Border>
@@ -362,6 +365,34 @@
                     <GradientStop Offset="1" Color="#00A8C7FF" />
                 </RadialGradientBrush>
             </Border.Background>
+        </Border>
+
+        <!-- 毛玻璃底层：两团柔光，透过上层半透明面板形成雾面质感 -->
+        <Border Grid.RowSpan="2" Grid.ColumnSpan="2" IsHitTestVisible="False">
+            <Canvas>
+                <Ellipse Canvas.Left="-140" Canvas.Top="470" Width="560" Height="560" Opacity="0.55">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Offset="0" Color="#5C4FD8FF" />
+                            <GradientStop Offset="1" Color="#004FD8FF" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                    <Ellipse.Effect>
+                        <BlurEffect Radius="110" />
+                    </Ellipse.Effect>
+                </Ellipse>
+                <Ellipse Canvas.Left="1020" Canvas.Top="-180" Width="620" Height="620" Opacity="0.5">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Offset="0" Color="#546FD3FF" />
+                            <GradientStop Offset="1" Color="#006FD3FF" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                    <Ellipse.Effect>
+                        <BlurEffect Radius="120" />
+                    </Ellipse.Effect>
+                </Ellipse>
+            </Canvas>
         </Border>
 
         <!-- 自绘标题栏 -->
@@ -490,7 +521,7 @@
                                     <GradientStop Offset="1" Color="#0A1219" />
                                 </LinearGradientBrush>
                             </Border.Background>
-                            <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
                                 <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
                                     <TextBlock Classes="overline" Text="CURRENT DEVICE" />
                                     <TextBlock x:Name="TxtDevName" Text="未连接设备" FontSize="32" FontWeight="DemiBold" LetterSpacing="-0.6" />
@@ -529,7 +560,16 @@
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
-                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="9" Margin="0,16,0,0">
+                                <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,14,0,0" HorizontalAlignment="Left"
+                                        Background="#08FFFFFF" BorderBrush="#1A2A38" BorderThickness="1" CornerRadius="10"
+                                        Padding="10,7" Cursor="Hand" PointerPressed="BtnHomeHelper_Click" ToolTip.Tip="高级互联：剪贴板 / 通知 / 短信">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Ellipse x:Name="DotHelper" Width="7" Height="7" Fill="#64758A" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="TxtHelperHome" Text="高级互联 · 检测中" FontSize="12" Foreground="#93A6BC" VerticalAlignment="Center" />
+                                        <Path Width="9" Height="9" Stretch="Uniform" Stroke="#64758A" StrokeThickness="1.8" Data="M6,3 L11,8 L6,13" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="9" Margin="0,16,0,0">
                                     <Button x:Name="BtnCast" Classes="primary" Click="BtnCast_Click">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Path Width="11" Height="12" Stretch="Uniform" Fill="#0A2130" Data="M4,2 L18,11 L4,20 Z" />

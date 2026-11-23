@@ -16,6 +16,7 @@ public sealed class HelperClient : IDisposable
     private const int Port = 8889;
 
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private readonly SemaphoreSlim _connectGate = new(1, 1);
     private TcpClient? _tcp;
     private StreamReader? _reader;
     private StreamWriter? _writer;
@@ -42,6 +43,19 @@ public sealed class HelperClient : IDisposable
     public HelperClient(string serial) => Serial = serial;
 
     public async Task<bool> ConnectAsync(CancellationToken ct = default)
+    {
+        await _connectGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            return await ConnectCoreAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _connectGate.Release();
+        }
+    }
+
+    private async Task<bool> ConnectCoreAsync(CancellationToken ct)
     {
         if (IsConnected) return true;
 

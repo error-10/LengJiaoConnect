@@ -7,7 +7,9 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using LengJiaoConnect.Services;
@@ -38,7 +40,33 @@ public partial class MainWindow
         {
             TxtHelperStatus.Text = "助手连接已断开";
             TxtSideHint.Text = "助手未连接";
+            UpdateHomeHelper();
+            _ = TryReconnectHelperAsync();
         });
+    }
+
+    private async Task TryReconnectHelperAsync()
+    {
+        await Task.Delay(2000);
+        var helper = _helper;
+        for (var i = 0; i < 3 && helper is { IsConnected: false }; i++)
+        {
+            try
+            {
+                if (await helper.ConnectAsync())
+                {
+                    await helper.CheckPermissionAsync();
+                    Dispatcher.UIThread.Post(UpdateHomeHelper);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("助手重连失败：" + ex.Message);
+            }
+
+            await Task.Delay(2500);
+        }
     }
 
     private void LoadSettingsUi()
@@ -152,6 +180,8 @@ public partial class MainWindow
         if (string.IsNullOrEmpty(_serial))
         {
             TxtHelperStatus.Text = "助手：未连接设备";
+            _helperInstalled = false;
+            UpdateHomeHelper();
             return;
         }
 
@@ -161,6 +191,8 @@ public partial class MainWindow
             if (!installed)
             {
                 TxtHelperStatus.Text = "助手未安装，点下面按钮安装。";
+                _helperInstalled = false;
+                UpdateHomeHelper();
                 return;
             }
 
@@ -168,6 +200,9 @@ public partial class MainWindow
             var listeners = await Adb.ShellTextAsync(_serial, "settings get secure enabled_notification_listeners");
             var granted = listeners.Contains("com.lengjiao.helper");
             TxtHelperStatus.Text = $"助手已安装{(version.Contains("versionName") ? " · " + version.Split('=').Last().Trim() : "")} · 通知监听{(granted ? "已授权" : "未授权")}";
+            _helperInstalled = true;
+            _helperNotif = granted;
+            UpdateHomeHelper();
         }
         catch (Exception ex)
         {
@@ -178,6 +213,9 @@ public partial class MainWindow
     private string HelperApkPath => Path.Combine(AppContext.BaseDirectory, "HelperApk", "LengJiaoHelper.apk");
 
     private readonly HashSet<string> _helperOffered = new(StringComparer.OrdinalIgnoreCase);
+    private bool _helperInstalled;
+    private bool _helperSms;
+    private bool _helperNotif;
 
     private async void BtnInstallHelper_Click(object? sender, RoutedEventArgs e)
     {
@@ -188,17 +226,18 @@ public partial class MainWindow
     /// <summary>
     /// 第一次连上一台手机时问一次：要不要装助手。装过的不再唠叨。
     /// </summary>
-    private async Task MaybeOfferHelperAsync()
+    private async Task MaybeOfferHelperAsync(bool force = false)
     {
         if (string.IsNullOrEmpty(_serial)) return;
-        if (!_helperOffered.Add(_serial)) return;
+        if (!force && !_helperOffered.Add(_serial)) return;
 
         try
         {
             if (await Adb.IsInstalledAsync(_serial, "com.lengjiao.helper"))
             {
-                if (_helper is { IsConnected: false }) await _helper.ConnectAsync();
-                await EnsureHelperPermissionsAsync(interactive: false);
+                _helperInstalled = true;
+                UpdateHomeHelper();
+                await EnsureHelperPermissionsAsync(interactive: force);
                 return;
             }
 
@@ -273,25 +312,169 @@ public partial class MainWindow
 
         try
         {
-            var listeners = await Adb.ShellTextAsync(_serial, "settings get secure enabled_notification_listeners");
-            if (listeners.Contains("com.lengjiao.helper")) return;
-            if (!interactive) return;
+            var notifOk = await ProbeNotificationPermissionAsync();
+            var smsOk = await ProbeSmsPermissionAsync();
 
-            var open = await ConfirmAsync(
-                "还差一个通知权限",
-                "在手机的「通知使用权」里勾选「棱角互联助手」，剪贴板和通知才会同步。要我现在把那个设置页打开吗？",
-                "打开设置",
-                "稍后我自己弄");
+            _helperSms = smsOk;
+            _helperNotif = notifOk;
+            UpdateHomeHelper();
 
-            if (!open) return;
+            if (!interactive || (smsOk && notifOk)) return;
 
-            await Adb.ShellAsync(_serial, "am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS");
-            Toast("在手机上勾选「棱角互联助手」，回来就生效");
+            if (!notifOk)
+            {
+                var open = await ConfirmAsync(
+                    "通知使用权还没开",
+                    "在手机的「通知使用权」里勾选「棱角互联助手」，剪贴板和通知才会同步。要我现在把那个设置页打开吗？",
+                    "打开设置",
+                    "稍后我自己弄");
+
+                if (open)
+                {
+                    await Adb.ShellAsync(_serial, "am start -a android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS");
+                    notifOk = await WaitForPermissionAsync(ProbeNotificationPermissionAsync, 90);
+                    _helperNotif = notifOk;
+                    UpdateHomeHelper();
+                    Toast(notifOk ? "通知使用权已开" : "还没检测到授权，稍后可在设置页重试", !notifOk);
+                }
+            }
+
+            if (!smsOk)
+            {
+                var open = await ConfirmAsync(
+                    "短信权限还没开",
+                    "读取短信要单独给「棱角互联助手」开权限。要我现在打开它的应用详情页吗？",
+                    "打开设置",
+                    "稍后我自己弄");
+
+                if (open)
+                {
+                    await Adb.ShellAsync(_serial, "am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:com.lengjiao.helper");
+                    smsOk = await WaitForPermissionAsync(ProbeSmsPermissionAsync, 90);
+                    _helperSms = smsOk;
+                    UpdateHomeHelper();
+                    Toast(smsOk ? "短信权限已开" : "还没检测到授权，稍后可在设置页重试", !smsOk);
+                }
+            }
         }
         catch (Exception ex)
         {
             Log.Warn("检查助手权限失败：" + ex.Message);
         }
+    }
+
+    private async Task<bool> ProbeNotificationPermissionAsync()
+    {
+        if (string.IsNullOrEmpty(_serial)) return false;
+        var listeners = await Adb.ShellTextAsync(_serial, "settings get secure enabled_notification_listeners");
+        return listeners.Contains("com.lengjiao.helper");
+    }
+
+    private async Task<bool> ProbeSmsPermissionAsync()
+    {
+        if (string.IsNullOrEmpty(_serial)) return false;
+
+        var dumpsys = await Adb.ShellTextAsync(_serial, "dumpsys package com.lengjiao.helper | grep READ_SMS");
+        if (dumpsys.Contains("granted=true")) return true;
+
+        // 有的 ROM 允许 shell 直接授，授完再查一次
+        await Adb.ShellAsync(_serial, "pm grant com.lengjiao.helper android.permission.READ_SMS");
+        dumpsys = await Adb.ShellTextAsync(_serial, "dumpsys package com.lengjiao.helper | grep READ_SMS");
+        return dumpsys.Contains("granted=true");
+    }
+
+    /// <summary>用户去手机上点授权，这边每 2 秒看一次，最多等 timeoutSeconds 秒。</summary>
+    private static async Task<bool> WaitForPermissionAsync(Func<Task<bool>> probe, int timeoutSeconds)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(2000);
+            try
+            {
+                if (await probe()) return true;
+            }
+            catch
+            {
+                // 手机上正在切页面，adb 偶发失败不算异常
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>主页那张“高级互联”状态条：安装/连接/权限三种状态都写在这里。</summary>
+    private void UpdateHomeHelper()
+    {
+        if (TxtHelperHome is null || DotHelper is null) return;
+
+        string text;
+        string color;
+
+        if (string.IsNullOrEmpty(_serial))
+        {
+            text = "高级互联 · 未连接设备";
+            color = "#64758A";
+        }
+        else if (!_helperInstalled)
+        {
+            text = "高级互联 · 未安装，点这里安装";
+            color = "#FFD166";
+        }
+        else if (_helper?.IsConnected != true)
+        {
+            text = "高级互联 · 未连接，点这里重试";
+            color = "#FFD166";
+        }
+        else if (!_helperSms || !_helperNotif)
+        {
+            var missing = !_helperSms && !_helperNotif ? "短信、通知权限" : (!_helperSms ? "短信权限" : "通知权限");
+            text = $"高级互联 · 已连接 · 缺{missing}，点这里授权";
+            color = "#FFD166";
+        }
+        else
+        {
+            text = "高级互联 · 已连接";
+            color = "#6FD3FF";
+        }
+
+        TxtHelperHome.Text = text;
+        DotHelper.Fill = new SolidColorBrush(Color.Parse(color));
+    }
+
+    private async void BtnHomeHelper_Click(object? sender, PointerPressedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_serial))
+        {
+            Toast("先连接设备", true);
+            return;
+        }
+
+        if (!_helperInstalled)
+        {
+            await MaybeOfferHelperAsync(force: true);
+            return;
+        }
+
+        if (_helper?.IsConnected != true)
+        {
+            Busy("正在重连助手…", true);
+            var ok = false;
+            try { ok = _helper != null && await _helper.ConnectAsync(); }
+            catch (Exception ex) { Log.Warn("助手重连失败：" + ex.Message); }
+            Busy("", false);
+            await RefreshHelperStatusAsync();
+            Toast(ok ? "助手已重新连上" : "助手没连上：确认手机上的通知使用权还开着", !ok);
+            return;
+        }
+
+        if (!_helperSms || !_helperNotif)
+        {
+            await EnsureHelperPermissionsAsync(interactive: true);
+            return;
+        }
+
+        Toast("高级互联正常：剪贴板、通知、短信都在同步");
     }
 
     private async void BtnRevokeHelper_Click(object? sender, RoutedEventArgs e)
