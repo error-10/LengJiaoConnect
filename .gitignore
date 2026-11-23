@@ -1,7 +1,23 @@
-[Bb]in/
-[Oo]bj/
-[Tt]est.*
-classes.dex
+bin/
+obj/
+publish/
 .vs/
 *.user
 *.suo
+Test.*
+
+# 构建中间产物
+HelperApk/classes/
+HelperApk/dex/
+HelperApk/gen/
+HelperApk/*.class
+HelperApk/classes.dex
+tools-shot.ps1
+HelperApk/*.idsig
+
+# 本地目录（嵌套克隆 / 备份）
+LengJiaoConnect/
+Legacy/
+
+# 根目录截图
+/*.png

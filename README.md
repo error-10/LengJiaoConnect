@@ -1,75 +1,112 @@
-# 棱角互联 (LengJiaoConnect)
+# 棱角互联 · LengJiaoConnect
 
-🎉 **让跨设备协同回归纯粹与优雅！**
+让跨设备协同回归纯粹：投屏、应用、短信、文件、剪贴板与通知，一个窗口全搞定。
 
-你是否还在为使用类原生系统无法享受官方互联软件而苦恼？
-你是否对市面上臃肿、广告满天飞的同步软件感到厌倦？
-你是否觉得手动配置 ADB 投屏和文件传输繁琐又令人头疼？
+界面用 **Avalonia + SukiUI** 重写，深色玻璃质感、冰蓝强调色、自绘标题栏与分组导航。
 
-试试 **棱角互联** 吧！
-我们致力于打造一款纯粹、极速、高颜值的跨屏协同利器。拒绝乱七八糟的臃肿功能，专注于为你提供最核心、最丝滑的体验！
+> 旧 WPF 版源码保留在 [`legacy/wpf`](legacy/wpf)，仅作参照，不参与编译。
 
----
+## 核心特性
 
-## ✨ 核心特性
+- **投屏与应用直达**（基于 scrcpy）：三档画质、声音、鼠标控制、UHID 键盘、息屏投屏；应用列表全量拉取、搜索、常用应用置顶、点按即启动。
+- **文件管理**：浏览、上传、下载、新建、重命名、删除，隐藏文件与 Root 穿透，支持多选与拖拽上传；中文文件名不再被截断。
+- **高级互联**：本地 socket 双向通信，剪贴板同步、通知转发（带防风暴过滤）、短信收件箱、媒体控制。
+- **双模连接**：USB 直连与 Android 11+ 无线调试配对，记住上次设备，断线自动重连。
+- **性能监控**：CPU、内存、存储、电池温度、实时上下行网速；只在窗口可见时采样，隐藏即停。
+- **日常体验**：托盘常驻、关闭到托盘、开机自启、单实例、日志、版本与内容校验。
 
-- **📱 极速无感投屏与应用直达，用电脑，玩手机 (基于 Scrcpy)**
-  - **桌面级应用抽屉**：自动拉取并高清渲染手机端的全量应用列表。
-   - **使用电脑控制手机**：使用电脑直接操控并查看手机。真正做到用电脑玩手机
-  - **全局搜索与智能记忆**：内置应用搜索，并基于本地历史记录自动置顶你的「常用应用」。
-  - **智能快捷启动**：点击应用图标瞬间通过底层唤醒 App，并自动拉起单例投屏窗口。
-  - **熄屏投屏**：独家支持投屏后自动关闭手机屏幕，省电且保护隐私。
-  - **硬核输入法防呆保护**：投屏前自动备份系统输入法并强制注入美式键盘（US），彻底根除电脑打字时的中英文键位冲突；投屏结束后完美无感回退原状态。
+## 环境
 
-- **📂 深度级文件管理**
-  - 图形化交互：支持双击直达、返回上一级等符合直觉的操作。
-  - **极速秒传**：电脑文件直接拖入面板秒传，手机文件双击极速拉取到电脑桌面。
-  - **Root 级穿透**：支持以 `su -c` 提权访问，轻松管理 `/data` 等系统深水区目录（需设备支持）。
+- Windows 10/11 x64
+- .NET 8 SDK（构建）/ .NET 8 Desktop Runtime（运行）
+- `Tools\adb.exe`、`Tools\scrcpy\`（仓库自带）
+- 手机端助手：`HelperApk\LengJiaoHelper.apk`（Android 7.0+）
 
-- **🚀 全新「高级互联」系统 (Advanced Interconnect)**
-  - **极致主动双向通信**：彻底重构了底层 Android 辅助服务架构，采用超低占用 Socket 指令流式通信。
-  - **跨端剪贴板同步**：打通电脑与手机，电脑复制的文本可瞬间无感推送到手机剪贴板。
-  - **系统级通知投送与防风暴过滤**：智能解析微信等 App 通知源，拦截常驻与无用通知，让电脑右下角永远只接收有价值的推送。
-  - **短信收件箱与媒体穿梭**：电脑端直接读取手机短信，并在悬浮控制台中实时掌控手机端媒体播放状态与切歌。
+## 构建
 
-- **🔗 双模无缝连接与心跳级重连**
-  - **全局心脏监控**：毫秒级多线程监控设备断连，并提供静默重试与平滑的 UI 状态变更。
-  - 支持 Android 11+ 免 Root 的原生无线调试配对（WiFi）。
-  - 支持传统 USB 端口直连与本地 IP 记忆。
+```powershell
+dotnet build .\LengJiaoConnect.Avalonia.csproj -c Release
+```
 
-- **🔒 动态云校验与防篡改引擎**
-  - 采用独家的轻量化云端检验机制，每次启动静默核对“接头暗号”。
-  - 自动拦截恶意篡改与盗版打包，并在新版本发布时右下角自动推送升级指引直达 Github Releases。
+产物：`bin\Release\net8.0\LengJiaoConnect.exe`（`Tools`、`HelperApk` 会一并复制）。
 
-- **🎨 现代高级交互美学**
-  - 全局暗色极客主题，配合 WPF 流畅的毛玻璃遮罩（Blur Effect）与弹性滑出动画。
-  - 支持开机自启并静默隐藏于系统托盘，随时待命，绝不打扰。
+发布绿色版：
 
----
+```powershell
+dotnet publish .\LengJiaoConnect.Avalonia.csproj -c Release -r win-x64 --self-contained false -o .\publish
+```
 
-## 💡 技术内幕
-“棱角互联”在底层深度集成了强大的 **ADB 工具链**与 **Scrcpy**。
-这本质上是一层极度优化的“壳”，但我们为它赋予了现代化的 UI 灵魂和强大的扩展生命力（如纯净的独立微型 APK 服务架构），让极客工具真正变成每个人都能轻松享受的生产力软件。
+## 手机端助手
 
----
+```powershell
+cd .\HelperApk
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+adb install -r -t -g .\LengJiaoHelper.apk
+adb shell cmd notification allow_listener com.lengjiao.helper/com.lengjiao.helper.HelperService
+adb shell pm grant com.lengjiao.helper android.permission.READ_SMS
+```
 
-## ⬇️ 下载与使用
-普通用户无需配置任何繁琐环境！
-请直接前往 [Releases 页面](https://github.com/error-10/LengJiaoConnect/releases/latest) 下载最新编译的绿色免安装版本，解压后双击 `LengJiaoConnect.exe` 即可运行。
+`build.ps1` 会自动查找 Android SDK build-tools 与 JDK；脚本本身必须保存为 **UTF-8 with BOM**，否则 PowerShell 5.1 会按 GBK 读取、中文注释会破坏语法。
 
----
+## 通信协议
 
-## 🛠️ 开发者编译
-如果你想基于源码进行二次开发，与我们一起构建更好的跨端生态：
-1. 确保你的电脑已安装 **.NET 8.0 SDK** 以及 **Android SDK Build-Tools**（用于编译微型助手 APK）。
-2. 克隆本仓库：
-   ```bash
-   git clone https://github.com/error-10/LengJiaoConnect.git
-   ```
-3. 切换至 `HelperApk` 目录并运行 `build.ps1` (用于更新并编译助手服务)。
-4. 运行项目本体：
-   ```bash
-   dotnet run
-   ```
+PC 与手机助手之间是本地 socket（`lengjiao_helper`，经 `adb forward tcp:8889`），**一行一个 JSON**。
 
-> **欢迎 Star ⭐️ 和提交 PR！** 让我们一起把纯粹的互联体验带给更多人！
+PC → 手机：
+
+```json
+{"t":"ping"}
+{"t":"clip","text":"..."}
+{"t":"perm"}
+{"t":"perm_page"}
+{"t":"sync","what":"apps"}
+{"t":"sync","what":"sms"}
+{"t":"sync","what":"media"}
+{"t":"media","cmd":"play|pause|next|prev"}
+```
+
+手机 → PC：
+
+```json
+{"t":"pong"}
+{"t":"clip","text":"..."}
+{"t":"notif","app":"...","title":"...","text":"..."}
+{"t":"sms","addr":"...","date":1730000000000,"body":"..."}
+{"t":"app","pkg":"...","name":"...","icon":"<base64 png>"}
+{"t":"apps_end","count":261}
+{"t":"media","title":"...","artist":"...","playing":true,"pkg":"..."}
+{"t":"perm","sms":true,"notif":true}
+```
+
+## 文件传输与中文名
+
+Windows 上的 adb 在「目标参数是目录」时会自己推导文件名，遇到中文会在 UTF-8 字符中间截断：截在合法边界就成功但名字残缺，截在字符中间就整条失败。
+
+所以本项目**永远传完整路径**：
+
+- 上传：`adb push <本地文件> <远端目录>/<文件名>`
+- 下载：`adb pull <远端文件> <本地目录>\<文件名>`
+
+参数一律通过 `ProcessStartInfo.ArgumentList` 传递，不手工拼引号。
+
+## 目录
+
+```
+.
+├─ Assets/            图标与字体
+├─ HelperApk/         手机端助手源码、清单、构建脚本、成品 APK
+├─ Models/            设备、应用、短信、文件、媒体模型
+├─ Services/          Adb / HelperClient / Scrcpy / 设置 / 日志
+├─ MainWindow.*.cs    主窗口与各页面
+├─ Tools/             adb、scrcpy
+└─ legacy/wpf/        旧 WPF 版源码（不参与编译）
+```
+
+## 日志
+
+`%APPDATA%\LengJiaoConnect\logs\app-yyyyMMdd.log`
+
+## 说明
+
+- 本工程不读取、不上传任何数据；所有 adb / socket 通信都在本机与数据线（或局域网）之间完成。
+- 手机端助手只申请 `READ_SMS` 与 `QUERY_ALL_PACKAGES`，用于短信读取与应用列表；通知通过 `NotificationListenerService` 授权。
