@@ -26,6 +26,10 @@
         <SolidColorBrush x:Key="InkMute" Color="#64758A" />
         <SolidColorBrush x:Key="Brand" Color="#6FD3FF" />
         <SolidColorBrush x:Key="Brand2" Color="#A8C7FF" />
+        <LinearGradientBrush x:Key="BrandGrad" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Offset="0" Color="#6FD3FF" />
+            <GradientStop Offset="1" Color="#A8C7FF" />
+        </LinearGradientBrush>
     </suki:SukiWindow.Resources>
 
     <suki:SukiWindow.Styles>
@@ -471,6 +475,17 @@
                             <TextBlock x:Name="TxtSideDevice" Text="未连接设备" FontSize="12" FontWeight="DemiBold" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                         <TextBlock x:Name="TxtSideHint" Classes="caption" Text="USB 或无线调试" TextTrimming="CharacterEllipsis" />
+                        <Button Background="#00000000" BorderThickness="0" Padding="0" HorizontalAlignment="Left"
+                                Click="BtnOpenAuthor_Click" ToolTip.Tip="作者主页 · miqwq.com" Cursor="Hand" Margin="0,3,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <Border Width="17" Height="17" CornerRadius="6" Background="{StaticResource BrandGrad}">
+                                    <Path Data="M2,8 C4.5,4.6 9.6,4.6 12.2,8 C9.6,11.4 4.5,11.4 2,8 Z M12.2,8 L15.4,5.4 L15.4,10.6 Z"
+                                          Fill="White" Stretch="Uniform" Margin="3" />
+                                </Border>
+                                <TextBlock Text="by 一条橙鱼" FontSize="11.5" FontWeight="DemiBold"
+                                           Foreground="{StaticResource BrandGrad}" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -973,6 +988,20 @@
                         <Border Classes="card">
                             <StackPanel Spacing="11">
                                 <TextBlock Classes="section" Text="关于" />
+                                <Border Background="#146FD3FF" BorderBrush="#336FD3FF" BorderThickness="1" CornerRadius="14" Padding="12,10">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                                        <Border Width="36" Height="36" CornerRadius="11" Background="{StaticResource BrandGrad}">
+                                            <Path Data="M2,8 C4.5,4.6 9.6,4.6 12.2,8 C9.6,11.4 4.5,11.4 2,8 Z M12.2,8 L15.4,5.4 L15.4,10.6 Z"
+                                                  Fill="White" Stretch="Uniform" Margin="5" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                            <TextBlock Text="by 一条橙鱼" FontSize="16" FontWeight="DemiBold" Foreground="{StaticResource BrandGrad}" />
+                                            <TextBlock Text="棱角互联 · 作者" Classes="caption" FontSize="11" />
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Classes="ghost" Content="主页 →" Click="BtnOpenAuthor_Click"
+                                                MinHeight="0" Height="30" Padding="12,4" FontSize="12" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                                     <TextBlock x:Name="TxtVersion" Text="版本 3.2.4" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Classes="ghost" Content="检查更新" Click="BtnCheckUpdate_Click" />
@@ -981,7 +1010,6 @@
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Classes="ghost" Content="键盘帮助" Click="ShowKeyboardHelp_Click" />
                                     <Button Classes="ghost" Content="新手教程" Click="ShowTutorial_Click" />
-                                    <Button Classes="ghost" Content="作者主页" Click="BtnOpenAuthor_Click" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Classes="ghost" Content="打开日志" Click="BtnOpenLogs_Click" />

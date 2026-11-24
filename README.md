@@ -110,3 +110,7 @@ Windows 上的 adb 在「目标参数是目录」时会自己推导文件名，�
 
 - 本工程不读取、不上传任何数据；所有 adb / socket 通信都在本机与数据线（或局域网）之间完成。
 - 手机端助手只申请 `READ_SMS` 与 `QUERY_ALL_PACKAGES`，用于短信读取与应用列表；通知通过 `NotificationListenerService` 授权。
+
+## 作者
+
+by 一条橙鱼 · https://miqwq.com
