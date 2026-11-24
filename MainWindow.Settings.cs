@@ -533,22 +533,82 @@ public partial class MainWindow
         finally { Busy("", false); }
     }
 
+    private sealed record UpdatePage(string Html, DateTimeOffset ServerTime, string CacheState);
+
+    /// <summary>拉更新页：加时间戳绕缓存，并判断拿到的是不是 CDN 缓存副本。</summary>
+    private async Task<UpdatePage?> FetchUpdatePageAsync()
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        http.DefaultRequestHeaders.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue
+        {
+            NoCache = true,
+            NoStore = true,
+            MaxAge = TimeSpan.Zero
+        };
+        http.DefaultRequestHeaders.Pragma.ParseAdd("no-cache");
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var url = VersionUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "-" + attempt;
+            using var resp = await http.GetAsync(url);
+            resp.EnsureSuccessStatusCode();
+
+            var html = await resp.Content.ReadAsStringAsync();
+            var serverTime = resp.Headers.Date ?? DateTimeOffset.UtcNow;
+            var xcache = resp.Headers.TryGetValues("X-Cache", out var cacheValues)
+                ? string.Join(",", cacheValues)
+                : "";
+            var age = resp.Headers.Age?.TotalSeconds ?? 0;
+
+            var cached = xcache.Contains("HIT", StringComparison.OrdinalIgnoreCase) || age > 60;
+            if (resp.Headers.TryGetValues("X-Swift-CacheTime", out var swiftValues)
+                && int.TryParse(swiftValues.FirstOrDefault(), out var swiftSeconds)
+                && swiftSeconds > 60)
+            {
+                cached = true;
+            }
+
+            if (!cached) return new UpdatePage(html, serverTime, xcache);
+
+            Log.Warn($"更新检查：疑似 CDN 缓存（X-Cache={xcache}, Age={age:F0}s），重试一次");
+        }
+
+        return null;
+    }
+
     private async Task<string?> CheckUpdatesAsync(bool silent)
     {
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var html = await http.GetStringAsync(VersionUrl);
-
-            var version = Regex.Match(html, @"<div id=""version"">\s*(?<v>[^<]+)\s*</div>");
-            var poem = Regex.Match(html, @"<div id=""poem"">\s*(?<p>[^<]+)\s*</div>");
-
-            if (!poem.Success || !poem.Groups["p"].Value.Contains(ExpectedPoem))
+            var page = await FetchUpdatePageAsync();
+            if (page is null)
             {
-                TxtUpdateStatus.Text = "校验失败：返回内容被篡改，已停止更新检查。";
+                TxtUpdateStatus.Text = "拿到的是缓存页面，已跳过本次检查（请稍后重试）。";
                 return null;
             }
 
+            // ① 服务器时间：和本地时间对一下，顺便证明服务器活着、不是旧缓存
+            var serverLocal = page.ServerTime.ToOffset(TimeSpan.FromHours(8));
+            var skew = (DateTimeOffset.UtcNow - page.ServerTime).Duration();
+            Log.Info($"更新检查：服务器时间 {serverLocal:yyyy-MM-dd HH:mm:ss}，本地时间 {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}，偏差 {skew.TotalSeconds:F0}s，X-Cache={page.CacheState}");
+            if (skew > TimeSpan.FromMinutes(30))
+            {
+                TxtUpdateStatus.Text = $"服务器时间对不上（差 {skew.TotalMinutes:F0} 分钟），可能是缓存页或服务器异常，已跳过。";
+                return null;
+            }
+
+            var html = page.Html;
+
+            // ③ 校验语：服务器内容是否被篡改
+            var poem = Regex.Match(html, @"<div id=""poem"">\s*(?<p>[^<]+)\s*</div>");
+            if (!poem.Success || !poem.Groups["p"].Value.Contains(ExpectedPoem))
+            {
+                TxtUpdateStatus.Text = "校验失败：校验语不对，返回内容可能被篡改，已停止更新检查。";
+                return null;
+            }
+
+            // ② 版本号正文
+            var version = Regex.Match(html, @"<div id=""version"">\s*(?<v>[^<]+)\s*</div>");
             if (!version.Success)
             {
                 if (!silent) TxtUpdateStatus.Text = "没有解析到版本号。";
@@ -556,14 +616,21 @@ public partial class MainWindow
             }
 
             var remote = version.Groups["v"].Value.Trim();
+            if (!Regex.IsMatch(remote, @"^\d+\.\d+(\.\d+)?$"))
+            {
+                TxtUpdateStatus.Text = $"版本号格式异常（{remote}），已停止更新检查。";
+                return null;
+            }
+
             _lastUpdateCheckUtc = DateTime.UtcNow;
+            var stamp = serverLocal.ToString("HH:mm");
             if (Version.TryParse(remote, out var rv) && Version.TryParse(CurrentVersion, out var cv) && rv > cv)
             {
                 TxtUpdateStatus.Text = $"发现新版本 {remote}（当前 {CurrentVersion}）";
                 return remote;
             }
 
-            TxtUpdateStatus.Text = $"电脑版 {CurrentVersion} · 已是最新";
+            TxtUpdateStatus.Text = $"电脑版 {CurrentVersion} · 已是最新（服务器 {stamp}）";
             return null;
         }
         catch (Exception ex)
