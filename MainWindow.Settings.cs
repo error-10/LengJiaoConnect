@@ -24,7 +24,7 @@ public partial class MainWindow
     private const string RepoUrl = "https://github.com/error-10/LengJiaoConnect";
     private const string VersionUrl = "https://biu.miqwq.com/index.html";
     private const string ExpectedPoem = "北冥有鱼，其名为鲲，鲲之大，一锅炖不下";
-    private const string CurrentVersion = "3.2.2";
+    private const string CurrentVersion = "3.2.3";
 
     private void WireHelperEvents()
     {

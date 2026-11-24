@@ -599,7 +599,11 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     {
         if (!_settings.SyncNotifications) return;
         var body = string.IsNullOrWhiteSpace(text) ? title : title + " · " + text;
-        Dispatcher.UIThread.Post(() => Toast(app + "：" + body));
+        Dispatcher.UIThread.Post(() =>
+        {
+            Toast(app + "：" + body);
+            ToastWindow.Show(app, string.IsNullOrWhiteSpace(title) ? "新通知" : title, text ?? "");
+        });
     }
 
     private void OnPermissionChanged(bool sms, bool notif)
