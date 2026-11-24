@@ -23,6 +23,9 @@ public sealed class AppSettings
 
     /// <summary>上一次连接的设备，保存成 ip:port，无线调试的随机端口也能记住。</summary>
     public string LastEndpoint { get; set; } = "";
+
+    /// <summary>上次弹过更新提示的版本号，避免每次启动都弹同一个版本。</summary>
+    public string LastUpdatePrompt { get; set; } = "";
 }
 
 public static class SettingsStore

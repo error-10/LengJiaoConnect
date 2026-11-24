@@ -113,7 +113,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         Log.Info($"GLASS actual={ActualTransparencyLevel} hint={string.Join(",", TransparencyLevelHint ?? new List<WindowTransparencyLevel>())}");
         Dispatcher.UIThread.Post(() => Log.Info($"LAYOUT title={TxtPageTitle.Bounds} sub={TxtPageSub.Bounds} stack={((Control)TxtPageTitle.Parent!).Bounds}"), DispatcherPriority.Background);
 
-        _ = CheckUpdatesAsync(silent: true);
+        _ = CheckUpdatesOnStartupAsync();
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -159,6 +159,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         Show();
         WindowState = WindowState.Normal;
         Activate();
+        _ = CheckUpdatesOnShowAsync();
     }
 
     private void RealExit()
@@ -342,6 +343,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         _device = device;
         _serial = device.Serial;
         ApplyDeviceUi(device);
+        _ = LoadAppsCacheAsync();
 
         if (device.IsWireless)
         {

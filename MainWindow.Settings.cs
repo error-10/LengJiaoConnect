@@ -19,12 +19,14 @@ namespace LengJiaoConnect;
 
 public partial class MainWindow
 {
+    private DateTime _lastUpdateCheckUtc = DateTime.MinValue;
+
     private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "LengJiaoConnect";
     private const string RepoUrl = "https://github.com/error-10/LengJiaoConnect";
     private const string VersionUrl = "https://biu.miqwq.com/index.html";
     private const string ExpectedPoem = "北冥有鱼，其名为鲲，鲲之大，一锅炖不下";
-    private const string CurrentVersion = "3.2.3";
+    private const string CurrentVersion = "3.2.4";
 
     private void WireHelperEvents()
     {
@@ -531,7 +533,7 @@ public partial class MainWindow
         finally { Busy("", false); }
     }
 
-    private async Task CheckUpdatesAsync(bool silent)
+    private async Task<string?> CheckUpdatesAsync(bool silent)
     {
         try
         {
@@ -544,32 +546,78 @@ public partial class MainWindow
             if (!poem.Success || !poem.Groups["p"].Value.Contains(ExpectedPoem))
             {
                 TxtUpdateStatus.Text = "校验失败：返回内容被篡改，已停止更新检查。";
-                return;
+                return null;
             }
 
             if (!version.Success)
             {
                 if (!silent) TxtUpdateStatus.Text = "没有解析到版本号。";
-                return;
+                return null;
             }
 
             var remote = version.Groups["v"].Value.Trim();
+            _lastUpdateCheckUtc = DateTime.UtcNow;
             if (Version.TryParse(remote, out var rv) && Version.TryParse(CurrentVersion, out var cv) && rv > cv)
-                TxtUpdateStatus.Text = $"发现新版本 {remote}（当前 {CurrentVersion}），点“检查更新”去下载。";
-            else
-                TxtUpdateStatus.Text = $"电脑版 {CurrentVersion} · 已是最新";
+            {
+                TxtUpdateStatus.Text = $"发现新版本 {remote}（当前 {CurrentVersion}）";
+                return remote;
+            }
+
+            TxtUpdateStatus.Text = $"电脑版 {CurrentVersion} · 已是最新";
+            return null;
         }
         catch (Exception ex)
         {
             if (!silent) TxtUpdateStatus.Text = "检查更新失败：" + ex.Message;
             Log.Warn("检查更新失败：" + ex.Message);
+            return null;
         }
+    }
+
+    /// <summary>启动时静默检查，有新版就弹窗；同一版本只弹一次。</summary>
+    private async Task CheckUpdatesOnStartupAsync()
+    {
+        await Task.Delay(900);
+        var remote = await CheckUpdatesAsync(silent: true);
+        if (string.IsNullOrEmpty(remote)) return;
+        await PromptUpdateAsync(remote, force: false);
+    }
+
+    /// <summary>从托盘回到窗口时，半小时最多查一次。</summary>
+    private async Task CheckUpdatesOnShowAsync()
+    {
+        if (DateTime.UtcNow - _lastUpdateCheckUtc < TimeSpan.FromMinutes(30)) return;
+        var remote = await CheckUpdatesAsync(silent: true);
+        if (string.IsNullOrEmpty(remote)) return;
+        await PromptUpdateAsync(remote, force: false);
+    }
+
+    private async Task PromptUpdateAsync(string remote, bool force)
+    {
+        if (!force && string.Equals(_settings.LastUpdatePrompt, remote, StringComparison.OrdinalIgnoreCase)) return;
+
+        // 别在别的弹窗上再压一层
+        if (DialogOverlay.IsVisible)
+        {
+            await Task.Delay(1200);
+            if (DialogOverlay.IsVisible) return;
+        }
+
+        _settings.LastUpdatePrompt = remote;
+        SettingsStore.Save();
+
+        var go = await ConfirmAsync(
+            "发现新版本 " + remote,
+            $"当前版本 {CurrentVersion}，新版本 {remote} 已经发布了。\n\n要打开下载页面看看吗？",
+            "去下载", "以后再说");
+        if (go) OpenUrl(RepoUrl + "/releases");
     }
 
     private async void BtnCheckUpdate_Click(object? sender, RoutedEventArgs e)
     {
-        await CheckUpdatesAsync(silent: false);
-        if (TxtUpdateStatus.Text?.StartsWith("发现新版本") == true) OpenUrl(RepoUrl + "/releases");
+        var remote = await CheckUpdatesAsync(silent: false);
+        if (string.IsNullOrEmpty(remote)) return;
+        await PromptUpdateAsync(remote, force: true);
     }
 
     private static void OpenUrl(string url)
@@ -579,6 +627,43 @@ public partial class MainWindow
     }
 
     private void BtnOpenGithub_Click(object? sender, RoutedEventArgs e) => OpenUrl(RepoUrl);
+
+    private const string AuthorUrl = "https://miqwq.com";
+
+    private void BtnOpenAuthor_Click(object? sender, RoutedEventArgs e) => OpenUrl(AuthorUrl);
+
+    private void ShowInfo(string title, string body)
+    {
+        TxtInfoTitle.Text = title;
+        TxtInfoBody.Text = body;
+        InfoOverlay.IsVisible = true;
+    }
+
+    private void BtnInfoClose_Click(object? sender, RoutedEventArgs e) => InfoOverlay.IsVisible = false;
+
+    private void ShowKeyboardHelp_Click(object? sender, RoutedEventArgs e)
+    {
+        ShowInfo("键盘帮助",
+            "为什么投屏里打字没反应？\n\n" +
+            "Windows 的中文输入法会先把字母截走去组词，投屏引擎根本收不到按键，这跟注入方式无关。\n\n" +
+            "正确姿势：\n" +
+            "1. 打字前按 Shift 或切到 ENG，让电脑处于英文输入状态；\n" +
+            "2. 想打中文，就在手机端用手机自己的输入法；\n" +
+            "3. 部分国产 ROM 会拦截 SDK 注入的按键，这时在首页打开「UHID 键盘」——投屏引擎会向手机伪装成一把真实插入的物理键盘，绕过检测。\n\n" +
+            "这一版投屏时会自动把 scrcpy 窗口切到 US 布局，退出后还原，正常情况下你不需要手动改系统输入法。");
+    }
+
+    private void ShowTutorial_Click(object? sender, RoutedEventArgs e)
+    {
+        ShowInfo("新手教程",
+            "第一次用，按这个顺序来：\n\n" +
+            "1. 手机：设置 → 关于手机 → 连点版本号进入开发者选项，打开「USB 调试」；\n" +
+            "2. 数据线连电脑，手机上弹出「允许 USB 调试」时勾选「始终允许」；\n" +
+            "3. 无线连接：手机打开「无线调试」→「使用配对码配对设备」，点电脑顶栏的设备胶囊，在浮层里填 IP、配对端口和 6 位配对码；\n" +
+            "4. 首次连接会提示安装手机助手（约 200KB）。装完后按提示授予「通知使用权」和「读取短信」，不授权也能用投屏和文件；\n" +
+            "5. 首页点「开始投屏」；在应用页点任意图标，会自动启动该应用并拉起投屏窗口。\n\n" +
+            "文件页支持拖拽上传、双击下载，中文文件名已按完整路径传输，不会再被截断。");
+    }
 
     private void BtnOpenLogs_Click(object? sender, RoutedEventArgs e)
     {

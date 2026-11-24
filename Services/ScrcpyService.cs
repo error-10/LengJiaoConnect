@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace LengJiaoConnect.Services;
 
@@ -10,7 +11,76 @@ namespace LengJiaoConnect.Services;
 public sealed class ScrcpyService : IDisposable
 {
     private readonly Dictionary<string, Process> _running = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IntPtr> _originalLayouts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _rotationBefore = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
+
+    private const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr LoadKeyboardLayoutW(string pwszKLID, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetKeyboardLayout(uint idThread);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr ActivateKeyboardLayout(IntPtr hkl, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SendMessageW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>把 scrcpy 窗口的输入法切到 US 布局，避免中文输入法截走按键。</summary>
+    private static void ApplyUsKeyboard(Process process)
+    {
+        try
+        {
+            var handle = process.MainWindowHandle;
+            if (handle == IntPtr.Zero) return;
+            var hkl = LoadKeyboardLayoutW("00000409", 1);
+            if (hkl == IntPtr.Zero) return;
+            SendMessageW(handle, WM_INPUTLANGCHANGEREQUEST, IntPtr.Zero, hkl);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("scrcpy.IME", ex.Message);
+        }
+    }
+
+    private void RestoreKeyboard(string serial)
+    {
+        if (!_originalLayouts.Remove(serial, out var hkl)) return;
+        try { ActivateKeyboardLayout(hkl, 0); } catch { }
+    }
+
+    private static async Task<int> ReadAccelRotationAsync(string serial)
+    {
+        try
+        {
+            var text = await Adb.ShellTextAsync(serial, "settings get system accelerometer_rotation", 5000);
+            return int.TryParse(text.Trim(), out var value) ? value : -1;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>部分 ROM 在投屏/息屏时会把自动旋转打开，这里按投屏前的状态恢复。</summary>
+    private async Task RestoreAccelRotationAsync(string serial)
+    {
+        if (!_rotationBefore.TryGetValue(serial, out var before) || before < 0) return;
+        try
+        {
+            var now = await ReadAccelRotationAsync(serial);
+            if (now < 0 || now == before) return;
+            await Adb.ShellAsync(serial, "settings put system accelerometer_rotation " + before, 5000);
+            Log.Info("scrcpy.rotation", "自动旋转被投屏改动（" + before + " → " + now + "），已恢复");
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("scrcpy.rotation", ex.Message);
+        }
+    }
 
     /// <summary>serial, 文案, 是否错误</summary>
     public event Action<string, string, bool>? StatusChanged;
@@ -87,6 +157,8 @@ public sealed class ScrcpyService : IDisposable
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
 
+        _rotationBefore[serial] = await ReadAccelRotationAsync(serial);
+
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var errorTail = "";
         process.ErrorDataReceived += (_, e) =>
@@ -102,8 +174,12 @@ public sealed class ScrcpyService : IDisposable
         process.Exited += (_, _) =>
         {
             lock (_gate) _running.Remove(serial);
+            RestoreKeyboard(serial);
+            _ = RestoreAccelRotationAsync(serial);
             StatusChanged?.Invoke(serial, "投屏已结束", false);
         };
+
+        _originalLayouts[serial] = GetKeyboardLayout(0);
 
         try
         {
@@ -137,6 +213,15 @@ public sealed class ScrcpyService : IDisposable
                 }
                 if (process.MainWindowHandle != IntPtr.Zero)
                 {
+                    ApplyUsKeyboard(process);
+                    _ = RestoreAccelRotationAsync(serial);
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(2500).ConfigureAwait(false);
+                        await RestoreAccelRotationAsync(serial).ConfigureAwait(false);
+                        await Task.Delay(3500).ConfigureAwait(false);
+                        await RestoreAccelRotationAsync(serial).ConfigureAwait(false);
+                    });
                     StatusChanged?.Invoke(serial, "投屏已启动", false);
                     return true;
                 }

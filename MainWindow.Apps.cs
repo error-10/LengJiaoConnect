@@ -25,6 +25,76 @@ public partial class MainWindow
 
     private static string RecentFilePath => Path.Combine(SettingsStore.DirectoryPath, "recent-apps.json");
 
+    private string AppsCachePath => Path.Combine(SettingsStore.DirectoryPath, "cache", "apps-" + SafeSerial(_serial) + ".json");
+
+    private static string SafeSerial(string serial) =>
+        string.IsNullOrWhiteSpace(serial) ? "default" : new string(serial.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+
+    /// <summary>先读本地缓存，界面立刻有东西；随后后台同步会覆盖。</summary>
+    public async Task LoadAppsCacheAsync()
+    {
+        var serial = _serial;
+        if (string.IsNullOrEmpty(serial)) return;
+
+        var path = AppsCachePath;
+        if (!File.Exists(path)) return;
+
+        List<AppInfo>? cached;
+        try
+        {
+            cached = JsonSerializer.Deserialize<List<AppInfo>>(await File.ReadAllTextAsync(path));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("读取应用缓存失败：" + ex.Message);
+            return;
+        }
+        if (cached is null || cached.Count == 0) return;
+
+        var ordered = await Task.Run(() =>
+        {
+            foreach (var app in cached)
+            {
+                app.Icon = DecodeIcon(app.IconBase64);
+                app.LaunchCount = LaunchCount(app.PackageName);
+            }
+            return cached
+                .OrderByDescending(a => a.LaunchCount)
+                .ThenBy(a => a.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+        });
+
+        if (!string.Equals(serial, _serial, StringComparison.Ordinal)) return;
+
+        _apps.Clear();
+        foreach (var app in ordered) _apps.Add(app);
+        TxtAppsCount.Text = _apps.Count + " 个应用";
+        PanelAppsEmpty.IsVisible = _apps.Count == 0;
+        ApplyAppFilter();
+        RebuildRecent();
+    }
+
+    private void SaveAppsCache()
+    {
+        try
+        {
+            var path = AppsCachePath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var snapshot = _apps.Select(a => new AppInfo
+            {
+                PackageName = a.PackageName,
+                AppName = a.AppName,
+                IconBase64 = a.IconBase64,
+                LaunchCount = a.LaunchCount
+            }).ToList();
+            File.WriteAllText(path, JsonSerializer.Serialize(snapshot));
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("写应用缓存失败：" + ex.Message);
+        }
+    }
+
     private void OnAppReceived(string package, string name, string icon)
     {
         lock (_tempAppsGate)
@@ -75,6 +145,7 @@ public partial class MainWindow
         PanelAppsEmpty.IsVisible = _apps.Count == 0;
         ApplyAppFilter();
         RebuildRecent();
+        SaveAppsCache();
     }
 
     private static IImage? DecodeIcon(string base64)
