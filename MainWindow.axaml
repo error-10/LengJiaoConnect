@@ -1003,7 +1003,7 @@
                                     </Grid>
                                 </Border>
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                    <TextBlock x:Name="TxtVersion" Text="版本 3.2.4" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="TxtVersion" Text="版本 3.2.5" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Classes="ghost" Content="检查更新" Click="BtnCheckUpdate_Click" />
                                 </Grid>
                                 <TextBlock x:Name="TxtUpdateStatus" Classes="caption" Text="" TextWrapping="Wrap" />

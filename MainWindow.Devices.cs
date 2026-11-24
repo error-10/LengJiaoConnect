@@ -111,13 +111,19 @@ public partial class MainWindow
     private async void BtnPopoverConnect_Click(object? sender, RoutedEventArgs e)
     {
         var ip = TxtPopoverIp.Text?.Trim() ?? "";
-        var port = TxtPopoverPort.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(port)) port = "5555";
+        var port = TxtPopoverPort.Text?.Trim() ?? "";
 
         if (ip.Length == 0)
         {
             TxtPopoverStatus.Text = "先填手机 IP";
             TxtPopoverIp.Focus();
+            return;
+        }
+
+        if (port.Length == 0)
+        {
+            TxtPopoverStatus.Text = "端口不能空。无线调试页面上显示的是「IP:端口」，把端口抄过来（老式 adb tcpip 才是 5555）。";
+            TxtPopoverPort.Focus();
             return;
         }
 
@@ -227,14 +233,28 @@ public partial class MainWindow
             return false;
         }
 
-        status("配对成功，正在连接…");
+        status("配对成功，正在找连接端口…");
 
-        var endpoints = await DiscoverEndpointsAsync();
-        var connectPort = endpoints.FirstOrDefault(x => x.Host == ip &&
-            (x.Type.Contains("_adb-tls-connect", StringComparison.OrdinalIgnoreCase) ||
-             x.Type.Contains("_adb._tcp", StringComparison.OrdinalIgnoreCase)))?.Port ?? 5555;
+        // 标准流程：配对端口（_adb-tls-pairing）和连接端口（_adb-tls-connect）是两个不同的随机端口。
+        // 配对成功后 mDNS 记录可能晚一两秒才广播，这里短暂轮询，拿不到就不猜 5555。
+        var connectPort = await DiscoverConnectPortAsync(ip);
+        if (connectPort is null)
+        {
+            TxtPopoverIp.Text = ip;
+            TxtPopoverPort.Text = "";
+            TxtPopoverPort.Focus();
+            status($"已配对成功。现在打开手机的「无线调试」页，上面那行「IP 地址和端口」就是连接地址，把端口填到下面「无线连接」里再点连接（配对端口和连接端口不是同一个）。");
+            return false;
+        }
 
         var endpoint = $"{ip}:{connectPort}";
+
+        // 同一台手机以前连过别的端口时，先断开旧 serial，避免列表里留一堆同名设备
+        var existing = await Adb.GetDevicesAsync();
+        foreach (var stale in existing.Where(d => d.Serial.StartsWith(ip + ":", StringComparison.Ordinal) && d.Serial != endpoint))
+        {
+            await Adb.DisconnectAsync(stale.Serial);
+        }
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var r = await Adb.ConnectAsync(endpoint);
@@ -243,6 +263,8 @@ public partial class MainWindow
                 _settings.LastEndpoint = endpoint;
                 SettingsStore.Save();
                 TxtLastEndpoint.Text = endpoint;
+                TxtPopoverIp.Text = ip;
+                TxtPopoverPort.Text = connectPort.Value.ToString();
                 status("已连接 " + endpoint);
                 return true;
             }
@@ -282,6 +304,25 @@ public partial class MainWindow
         }
 
         return "配对失败：" + text;
+    }
+
+    /// <summary>
+    /// 找 _adb-tls-connect（或老的 _adb._tcp）广播的连接端口。配对刚结束时广播可能晚到，短暂轮询几次。
+    /// 拿不到就返回 null，由调用方让用户从「无线调试」页面抄端口，绝不默认 5555。
+    /// </summary>
+    private static async Task<int?> DiscoverConnectPortAsync(string ip)
+    {
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            var list = await DiscoverEndpointsAsync();
+            var hit = list.FirstOrDefault(x => x.Host == ip &&
+                (x.Type.Contains("_adb-tls-connect", StringComparison.OrdinalIgnoreCase) ||
+                 x.Type.Contains("_adb._tcp", StringComparison.OrdinalIgnoreCase)));
+            if (hit is not null) return hit.Port;
+            if (attempt < 3) await Task.Delay(700);
+        }
+
+        return null;
     }
 
     private static async Task<List<MdnsEndpoint>> DiscoverEndpointsAsync()
