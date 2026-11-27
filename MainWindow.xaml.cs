@@ -3,16 +3,19 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Transformation;
-using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -23,19 +26,47 @@ namespace LengJiaoConnect;
 
 public partial class MainWindow : SukiUI.Controls.SukiWindow
 {
+    private const uint WM_CLIPBOARDUPDATE = 0x031D;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
+
+    private static readonly IBrush BrushOnline = new SolidColorBrush(Color.Parse("#6FD3FF"));
+    private static readonly IBrush BrushOffline = new SolidColorBrush(Color.Parse("#64758A"));
+    private static readonly IBrush BrushWarn = new SolidColorBrush(Color.Parse("#FFD166"));
+    private static readonly IBrush BrushDanger = new SolidColorBrush(Color.Parse("#FF6B6B"));
+    private static readonly IBrush BrushSuccess = new SolidColorBrush(Color.Parse("#56D364"));
+    private static readonly IBrush BrushDim = new SolidColorBrush(Color.Parse("#8FA8A4"));
+
     private readonly AppSettings _settings = SettingsStore.Current;
     private readonly ScrcpyService _scrcpy = new();
     private readonly ObservableCollection<AppInfo> _apps = new();
+    private readonly ObservableCollection<AppInfo> _visibleApps = new();
     private readonly ObservableCollection<AppInfo> _recent = new();
     private readonly ObservableCollection<SmsItem> _sms = new();
     private readonly ObservableCollection<AndroidFile> _files = new();
+    private readonly ObservableCollection<BreadcrumbSegment> _breadcrumbs = new();
+
+    private readonly SemaphoreSlim _deviceSwitchGate = new(1, 1);
+    private readonly SemaphoreSlim _dialogGate = new(1, 1);
 
     private HelperClient? _helper;
     private DeviceInfo? _device;
     private string _serial = "";
+    private int _deviceEpoch;
+    private string _currentPageTag = "home";
+    private string? _suppressedSerial;
+    private bool _suppressAutoReconnect;
+
     private DispatcherTimer? _deviceTimer;
     private DispatcherTimer? _mediaTimer;
+    private DispatcherTimer? _statusTimer;
     private TrayIcon? _tray;
+    private IntPtr _clipboardHwnd;
+    private bool _openedOnce;
     private bool _realExit;
     private bool _uiReady;
     private bool _mediaPlaying;
@@ -48,22 +79,26 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     {
         InitializeComponent();
 
-        ListApps.ItemsSource = _apps;
+        ListApps.ItemsSource = _visibleApps;
         ListRecent.ItemsSource = _recent;
         ListSms.ItemsSource = _sms;
         ListFiles.ItemsSource = _files;
+        ListBreadcrumbs.ItemsSource = _breadcrumbs;
 
         _scrcpy.StatusChanged += OnCastStatus;
 
         Opened += OnOpened;
         Closing += OnClosing;
+        KeyDown += MainWindow_KeyDown;
 
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
+        LoadLaunchCounts();
         LoadSettingsUi();
+        RebuildBreadcrumbs(CurrentRemotePath);
         _uiReady = true;
 
         // 调试/截图用：LJC_PAGE=files 之类，启动后直接落到指定页
@@ -89,13 +124,20 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
 
     private async void OnOpened(object? sender, EventArgs e)
     {
+        // Avalonia 在 Hide() -> Show() 恢复窗口时会再次触发 Opened，必须做一次性保护，
+        // 避免重复创建托盘图标与轮询定时器造成泄漏。
+        if (_openedOnce) return;
+        _openedOnce = true;
+
         CreateTray();
+        StartClipboardWatcher();
         await PollDevicesAsync();
+
         if (Environment.GetEnvironmentVariable("LJC_POPOVER") == "1") ToggleDevicePopover(true);
         if (Environment.GetEnvironmentVariable("LJC_PAIR") == "1")
         {
             ToggleDevicePopover(true);
-            BtnPopoverPairToggle_Click(null, new Avalonia.Interactivity.RoutedEventArgs());
+            BtnPopoverPairToggle_Click(null, new RoutedEventArgs());
         }
 
         _deviceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -105,14 +147,42 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         _mediaTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _mediaTimer.Tick += async (_, _) =>
         {
-            if (_helper is { IsConnected: true }) await _helper.RequestMediaAsync();
+            if (_helper is { IsConnected: true } && IsVisible && WindowState != WindowState.Minimized)
+                await _helper.RequestMediaAsync();
         };
         _mediaTimer.Start();
 
-        StartPerfTimer();
-        Log.Info($"GLASS actual={ActualTransparencyLevel} hint={string.Join(",", TransparencyLevelHint ?? new List<WindowTransparencyLevel>())}");
-        Dispatcher.UIThread.Post(() => Log.Info($"LAYOUT title={TxtPageTitle.Bounds} sub={TxtPageSub.Bounds} stack={((Control)TxtPageTitle.Parent!).Bounds}"), DispatcherPriority.Background);
+        // 定期刷新设备状态（WiFi 信号/SSID、蓝牙、充电态等）；若外部新装了助手也自动接上
+        _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _statusTimer.Tick += async (_, _) =>
+        {
+            var serial = _serial;
+            var epoch = _deviceEpoch;
+            if (string.IsNullOrEmpty(serial)) return;
+            if (IsVisible && WindowState != WindowState.Minimized)
+                await UpdateDeviceStatusAsync(serial, epoch);
+            if (!_helperInstalled && await Adb.IsInstalledAsync(serial, "com.lengjiao.helper"))
+            {
+                await RefreshHelperStatusAsync();
+                if (_deviceEpoch == epoch && _helperInstalled && _helper is not { IsConnected: true })
+                {
+                    var helper = new HelperClient(serial);
+                    _helper = helper;
+                    WireHelperEvents(helper, epoch);
+                    if (await helper.ConnectAsync())
+                    {
+                        await helper.CheckPermissionAsync();
+                        if (_settings.SyncApps) await RequestAppsAsync();
+                        if (_settings.SyncSms) await RequestSmsAsync();
+                        await helper.RequestMediaAsync();
+                        UpdateHomeHelper();
+                    }
+                }
+            }
+        };
+        _statusTimer.Start();
 
+        StartPerfTimer();
         _ = CheckUpdatesOnStartupAsync();
     }
 
@@ -128,6 +198,13 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     {
         try
         {
+            if (_tray != null)
+            {
+                _tray.IsVisible = false;
+                _tray.Dispose();
+                _tray = null;
+            }
+
             _tray = new TrayIcon
             {
                 ToolTipText = "棱角互联",
@@ -160,21 +237,38 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         WindowState = WindowState.Normal;
         Activate();
         _ = CheckUpdatesOnShowAsync();
+        if (!string.IsNullOrEmpty(_serial))
+            _ = UpdateDeviceStatusAsync(_serial, _deviceEpoch);
     }
 
-    private void RealExit()
+    private async void RealExit()
     {
+        if (_realExit) return;
         _realExit = true;
+        var serial = _serial;
         Cleanup();
+        try
+        {
+            if (!string.IsNullOrEmpty(serial))
+                await Task.WhenAny(HelperClient.RemoveForwardAsync(serial), Task.Delay(1200));
+        }
+        catch { }
         Close();
-        Environment.Exit(0);
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();
+        else
+            Environment.Exit(0);
     }
 
     private void Cleanup()
     {
         _deviceTimer?.Stop();
         _mediaTimer?.Stop();
+        _statusTimer?.Stop();
         _perfTimer?.Stop();
+        _smsFlushTimer?.Stop();
+        _searchTimer?.Stop();
+        StopClipboardWatcher();
         _scrcpy.Dispose();
         DetachHelper();
         SettingsStore.Save();
@@ -186,7 +280,127 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         }
     }
 
-    // ───────────────────────── 导航 ─────────────────────────
+    // ───────────────────────── 剪贴板监听（PC → 手机） ─────────────────────────
+
+    private void StartClipboardWatcher()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var handle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            if (handle == IntPtr.Zero) return;
+            if (AddClipboardFormatListener(handle))
+            {
+                _clipboardHwnd = handle;
+                Win32Properties.AddWndProcHookCallback(this, ClipboardWndProc);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("注册剪贴板监听失败：" + ex.Message);
+        }
+    }
+
+    private void StopClipboardWatcher()
+    {
+        if (_clipboardHwnd == IntPtr.Zero) return;
+        try
+        {
+            RemoveClipboardFormatListener(_clipboardHwnd);
+            Win32Properties.RemoveWndProcHookCallback(this, ClipboardWndProc);
+        }
+        catch { }
+        _clipboardHwnd = IntPtr.Zero;
+    }
+
+    private IntPtr ClipboardWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WM_CLIPBOARDUPDATE)
+            _ = PushLocalClipboardToPhoneAsync();
+        return IntPtr.Zero;
+    }
+
+    private async Task PushLocalClipboardToPhoneAsync()
+    {
+        if (!_settings.SyncClipboard || _helper is not { IsConnected: true } || Clipboard is null) return;
+        try
+        {
+            var text = await Clipboard.TryGetTextAsync();
+            if (string.IsNullOrEmpty(text)) return;
+            if (string.Equals(text, _lastClip, StringComparison.Ordinal)) return;
+            _lastClip = text;
+            await _helper.SendClipAsync(text);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("读取本机剪贴板失败：" + ex.Message);
+        }
+    }
+
+    // ───────────────────────── 导航 & 快捷键 ─────────────────────────
+
+    private void MainWindow_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DialogOverlay.IsVisible)
+        {
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                BtnDialogCancel_Click(null, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Enter && DialogInput.IsVisible)
+            {
+                e.Handled = true;
+                BtnDialogOk_Click(null, new RoutedEventArgs());
+            }
+            return;
+        }
+
+        if (UpdateOverlay.IsVisible && e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            UpdateOverlay.IsVisible = false;
+            return;
+        }
+
+        if (InfoOverlay.IsVisible && e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            InfoOverlay.IsVisible = false;
+            return;
+        }
+
+        if (_devicePopoverOpen && e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            ToggleDevicePopover(false);
+            return;
+        }
+
+        if (_currentPageTag == "files" && e.Source is not TextBox)
+        {
+            if (e.Key == Key.F5)
+            {
+                e.Handled = true;
+                _ = LoadDirectoryAsync(_currentPath);
+            }
+            else if (e.Key == Key.Back)
+            {
+                e.Handled = true;
+                BtnUp_Click(null, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                BtnDelete_Click(null, new RoutedEventArgs());
+            }
+            else if (e.Key == Key.F2)
+            {
+                e.Handled = true;
+                BtnRename_Click(null, new RoutedEventArgs());
+            }
+        }
+    }
 
     private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -205,11 +419,14 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
 
     private void BtnClose_Click(object? sender, RoutedEventArgs e) => Close();
+
     private void Nav_Checked(object? sender, RoutedEventArgs e)
     {
         if (!_uiReady || sender is not RadioButton rb || rb.IsChecked != true) return;
 
         var tag = rb.Tag as string ?? "home";
+        _currentPageTag = tag;
+
         PageHome.IsVisible = tag == "home";
         PageFiles.IsVisible = tag == "files";
         PageApps.IsVisible = tag == "apps";
@@ -224,15 +441,15 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
             "settings" => PageSettings,
             _ => PageHome
         };
-        AnimateIn(page, 14);
+        AnimateIn(page, 12, 220);
 
         (TxtPageTitle.Text, TxtPageSub.Text) = tag switch
         {
-            "files" => ("文件", "浏览、上传与下载手机文件"),
-            "apps" => ("应用", "启动应用、安装 APK"),
-            "sms" => ("短信", "最近的 50 条短信"),
-            "settings" => ("设置", "连接、高级互联与关于"),
-            _ => ("概览", "设备、投屏与高级互联")
+            "files" => ("文件", "浏览、上传、下载与 Root 文件管理"),
+            "apps" => ("应用", "一键启动并投屏、安装 APK"),
+            "sms" => ("短信", "最近 50 条收件箱短信与验证码提取"),
+            "settings" => ("设置", "连接策略、高级互联与软件更新"),
+            _ => ("概览", _device?.IsOnline == true ? "设备已就绪" : "设备、投屏与高级互联")
         };
 
         if (tag == "files" && _files.Count == 0 && !string.IsNullOrEmpty(_serial))
@@ -243,8 +460,8 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
             _ = RequestSmsAsync();
     }
 
-    // 统一的入场动效：淡入 + 轻微上移，曲线用的是 Material 的 emphasized decelerate
-    private static void AnimateIn(Control c, double dy = 10, int ms = 260)
+    // 统一的入场动效：淡入 + 轻微上移
+    private static void AnimateIn(Control c, double dy = 10, int ms = 240)
     {
         c.Opacity = 0;
         c.RenderTransform = TransformOperations.Parse("translateY(" + dy.ToString(System.Globalization.CultureInfo.InvariantCulture) + "px)");
@@ -279,10 +496,17 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         _polling = true;
         try
         {
-            var list = await Adb.GetDevicesAsync();
-            // 多台在线时，保持用户手动选中的那台，不要被“第一台”抢回去
-            var online = list.FirstOrDefault(d => d.IsOnline && d.Serial == _serial)
-                         ?? list.FirstOrDefault(d => d.IsOnline);
+            var (ok, list) = await Adb.TryGetDevicesAsync();
+            // adb devices 偶发超时/出错时不能误判设备掉线，保留当前状态等待下次轮询。
+            if (!ok) return;
+
+            var onlineList = list.Where(d => d.IsOnline).ToList();
+            // 如果用户主动断开了某台 USB 设备，只要该设备仍未拔掉且无其他设备，就保持断开直到用户主动重连或换设备。
+            if (_suppressedSerial != null && !onlineList.Any(d => d.Serial == _suppressedSerial))
+                _suppressedSerial = null;
+
+            var online = onlineList.FirstOrDefault(d => d.Serial == _serial)
+                         ?? onlineList.FirstOrDefault(d => d.Serial != _suppressedSerial);
 
             if (online == null)
             {
@@ -294,7 +518,8 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
                     ApplyDeviceUi(null);
                 }
 
-                if (_settings.AutoReconnect && !string.IsNullOrWhiteSpace(_settings.LastEndpoint) &&
+                if (!_suppressAutoReconnect && _settings.AutoReconnect &&
+                    !string.IsNullOrWhiteSpace(_settings.LastEndpoint) &&
                     (DateTime.Now - _lastReconnect).TotalSeconds > 10)
                 {
                     _lastReconnect = DateTime.Now;
@@ -339,52 +564,83 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
 
     private async Task SetActiveDeviceAsync(DeviceInfo device)
     {
-        DetachHelper();
-        _device = device;
-        _serial = device.Serial;
-        ApplyDeviceUi(device);
-        _ = LoadAppsCacheAsync();
-
-        if (device.IsWireless)
+        await _deviceSwitchGate.WaitAsync();
+        try
         {
-            _settings.LastEndpoint = device.Serial;
-            SettingsStore.Save();
-            TxtLastEndpoint.Text = device.Serial;
-        }
+            if (string.Equals(_serial, device.Serial, StringComparison.Ordinal) && _device?.IsOnline == true)
+            {
+                _device = device;
+                ApplyDeviceUi(device);
+                return;
+            }
 
-        _helper = new HelperClient(device.Serial);
-        WireHelperEvents();
+            _suppressedSerial = null;
+            _suppressAutoReconnect = false;
+            var epoch = Interlocked.Increment(ref _deviceEpoch);
 
-        await UpdateDeviceStatusAsync(device.Serial);
-        await RefreshHelperStatusAsync();
-        _ = MaybeOfferHelperAsync();
+            DetachHelper();
+            _device = device;
+            _serial = device.Serial;
+            ApplyDeviceUi(device);
+            _ = LoadAppsCacheAsync(epoch);
 
-        // 连上设备就先拉一次目录，文件页打开时不再空白
-        if (_files.Count == 0)
-        {
-            Log.Info("拉取目录：" + CurrentRemotePath);
+            if (device.IsWireless)
+            {
+                _settings.LastEndpoint = device.Serial;
+                SettingsStore.Save();
+                UpdateLastEndpointUi();
+            }
+
+            await UpdateDeviceStatusAsync(device.Serial, epoch);
+            if (_deviceEpoch != epoch) return;
+
+            await RefreshHelperStatusAsync();
+            if (_deviceEpoch != epoch) return;
+
             _ = LoadDirectoryAsync(CurrentRemotePath);
-        }
 
-        Log.Info("开始连接 helper…");
-        var ok = await _helper.ConnectAsync();
-        Log.Info("helper 连接结果：" + ok);
-        UpdateHomeHelper();
-        if (ok)
-        {
-            try
+            // 只有已安装助手时才尝试建立 socket 通道，避免对未装助手的手机反复建隧道
+            if (!_helperInstalled)
             {
-                await _helper.CheckPermissionAsync();
-                if (_settings.SyncApps) await RequestAppsAsync();
-                if (_settings.SyncSms) await RequestSmsAsync();
-                await _helper.RequestMediaAsync();
+                UpdateHomeHelper();
+                _ = MaybeOfferHelperAsync();
+                return;
             }
-            catch (Exception ex)
+
+            var helper = new HelperClient(device.Serial);
+            _helper = helper;
+            WireHelperEvents(helper, epoch);
+
+            Log.Info("开始连接 helper…");
+            var ok = await helper.ConnectAsync();
+            if (_deviceEpoch != epoch || !ReferenceEquals(_helper, helper)) return;
+
+            Log.Info("helper 连接结果：" + ok);
+            UpdateHomeHelper();
+            if (ok)
             {
-                Log.Warn("初始化同步失败：" + ex);
+                try
+                {
+                    await helper.CheckPermissionAsync();
+                    if (_settings.SyncApps) await RequestAppsAsync();
+                    if (_settings.SyncSms) await RequestSmsAsync();
+                    await helper.RequestMediaAsync();
+                }
+                catch (Exception ex)
+                {
+                    Log.Warn("初始化同步失败：" + ex);
+                }
+            }
+            else
+            {
+                Log.Warn("helper 连接失败：" + device.Serial);
+                _ = MaybeOfferHelperAsync();
             }
         }
-        else Log.Warn("helper 连接失败：" + device.Serial);
+        finally
+        {
+            _deviceSwitchGate.Release();
+        }
     }
 
     private void DetachHelper()
@@ -394,20 +650,44 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
             _helper.Dispose();
             _helper = null;
         }
+
+        _smsFlushTimer?.Stop();
+        lock (_tempSmsGate) _tempSms.Clear();
+        lock (_tempAppsGate) _tempApps.Clear();
+
+        foreach (var app in _apps) app.DisposeIcon();
         _apps.Clear();
+        _visibleApps.Clear();
         _recent.Clear();
         _sms.Clear();
+        _files.Clear();
+        _currentPath = "/sdcard/";
+        TxtPath.Text = _currentPath;
+        RebuildBreadcrumbs(_currentPath);
+        TxtFileStatus.Text = "";
+        TxtFileSelection.IsVisible = false;
+        TxtAppsCount.Text = "";
+        TxtSmsCount.Text = "";
+        TxtRecentLabel.IsVisible = false;
+        ListRecent.IsVisible = false;
+
         PanelAppsEmpty.IsVisible = true;
         PanelSmsEmpty.IsVisible = true;
         PanelSmsDetail.IsVisible = false;
+        PanelFilesEmpty.IsVisible = false;
+
+        ResetPerfCounters();
+        UpdateMediaUi(new MediaInfo());
+        UpdateCastVisual();
     }
 
     private void ApplyDeviceUi(DeviceInfo? d)
     {
         var online = d?.IsOnline == true;
-        var brush = new SolidColorBrush(Color.Parse(online ? "#6FD3FF" : "#6B7A77"));
+        var brush = online ? BrushOnline : BrushOffline;
         DotTop.Fill = brush;
         SideDot.Fill = brush;
+        SideDotGlow.IsVisible = online;
 
         TxtTopDevice.Text = d?.DisplayName ?? "未连接";
         TxtSideDevice.Text = d?.DisplayName ?? "未连接设备";
@@ -415,22 +695,30 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         TxtDevName.Text = d?.DisplayName ?? "未连接设备";
         TxtDevSerial.Text = d?.Serial ?? "插入 USB 或连接无线调试";
         TxtDevState.Text = online ? (d!.IsWireless ? "WiFi 连接" : "USB 连接") : (d?.StateText ?? "离线");
-        TxtPageSub.Text = online ? "设备已就绪" : "等待设备连接";
+
+        // 仅在概览页更新副标题，绝不覆盖文件/应用/短信/设置页的副标题
+        if (_currentPageTag == "home")
+            TxtPageSub.Text = online ? "设备已就绪" : "等待设备连接";
 
         BtnCast.IsEnabled = online;
         BtnStopCast.IsEnabled = online;
         BtnDisconnect.IsEnabled = online;
+        BtnReboot.IsEnabled = online;
+        UpdateCastVisual();
 
         if (!online)
         {
-            TxtDevBattery.Text = "电量 —";
-            TxtDevWifi.Text = "WiFi —";
-            TxtDevBt.Text = "蓝牙 —";
-            TxtTopMeta.Text = "";
+            BadgeDevAndroid.IsVisible = false;
+            SetBatteryVisual(null, false);
+            SetWifiVisual(false, 0, "");
+            SetBtVisual(false);
+            TxtDevWifi.Text = "—";
+            TxtDevBt.Text = "—";
+            UpdateHomeHelper();
         }
     }
 
-    private async Task UpdateDeviceStatusAsync(string serial)
+    private async Task UpdateDeviceStatusAsync(string serial, int epoch)
     {
         try
         {
@@ -439,7 +727,10 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
             var btTask = Adb.ShellTextAsync(serial, "settings get global bluetooth_on");
             var rssiTask = Adb.ShellTextAsync(serial, "dumpsys wifi | grep -m1 'RSSI:'");
             var ssidTask = Adb.ShellTextAsync(serial, "cmd wifi status | grep -m1 'SSID:'");
-            await Task.WhenAll(batteryTask, wifiTask, btTask, rssiTask, ssidTask);
+            var verTask = Adb.GetPropAsync(serial, "ro.build.version.release");
+            await Task.WhenAll(batteryTask, wifiTask, btTask, rssiTask, ssidTask, verTask);
+
+            if (_deviceEpoch != epoch || !string.Equals(_serial, serial, StringComparison.Ordinal)) return;
 
             var level = System.Text.RegularExpressions.Regex.Match(batteryTask.Result, @"level:\s*(\d+)");
             var status = System.Text.RegularExpressions.Regex.Match(batteryTask.Result, @"status:\s*(\d+)");
@@ -457,10 +748,17 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
             var ssid = ssidMatch.Success ? ssidMatch.Groups[1].Value.Trim() : "";
 
             var btOn = btTask.Result.Trim() == "1";
+            var androidVer = verTask.Result.Trim();
 
             SetBatteryVisual(pct, charging);
             SetWifiVisual(connected, wifiLevel, ssid);
             SetBtVisual(btOn);
+
+            if (!string.IsNullOrWhiteSpace(androidVer))
+            {
+                TxtDevAndroid.Text = "Android " + androidVer;
+                BadgeDevAndroid.IsVisible = true;
+            }
         }
         catch (Exception ex)
         {
@@ -472,21 +770,24 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     {
         if (pct is null)
         {
-            BarBattery.Width = 0; TopBatteryBar.Width = 0;
-            TxtDevBattery.Text = "—"; TxtTopMeta.Text = "";
+            BarBattery.Width = 0;
+            TopBatteryBar.Width = 0;
+            IconBatteryBolt.IsVisible = false;
+            TxtDevBattery.Text = "—";
+            TxtTopMeta.Text = "";
             return;
         }
 
         var p = Math.Clamp(pct.Value, 0, 100);
-        var color = p <= 15 ? Color.Parse("#FF6B6B") : p <= 35 ? Color.Parse("#FFD166") : Color.Parse("#6FD3FF");
-        var brush = new SolidColorBrush(color);
+        var brush = p <= 15 ? BrushDanger : p <= 35 ? BrushWarn : (charging ? BrushSuccess : BrushOnline);
         BarBattery.Background = brush;
         BarBattery.Width = Math.Max(2, 20 * p / 100);
         TopBatteryBar.Background = brush;
-        TopBatteryBar.Width = Math.Max(1.5, 13 * p / 100);
+        TopBatteryBar.Width = Math.Max(2, 21 * p / 100);
+        IconBatteryBolt.IsVisible = charging;
 
-        TxtDevBattery.Text = p.ToString("0") + "%" + (charging ? " ↑" : "");
-        TxtTopMeta.Text = p.ToString("0") + "%";
+        TxtDevBattery.Text = p.ToString("0") + "%";
+        TxtTopMeta.Text = p.ToString("0") + "%" + (charging ? " ⚡" : "");
     }
 
     private void SetWifiVisual(bool connected, int level, string ssid)
@@ -505,30 +806,41 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
 
     private void SetBtVisual(bool on)
     {
-        IcoBt.Fill = new SolidColorBrush(Color.Parse(on ? "#6FD3FF" : "#4A5A6B"));
+        var brush = on ? BrushOnline : BrushOffline;
+        IcoBt.Fill = brush;
         BtSlash.IsVisible = !on;
         TxtDevBt.Text = on ? "已开启" : "已关闭";
-        TopBt.Fill = new SolidColorBrush(Color.Parse(on ? "#6FD3FF" : "#4A5A6B"));
+        TopBt.Fill = brush;
         TopBtSlash.IsVisible = !on;
     }
+
     private async void BtnDisconnect_Click(object? sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(_serial)) return;
-        if (!await ConfirmAsync("断开连接", "确定要断开 " + _serial + " 吗？", "断开", "取消")) return;
+        var serial = _serial;
+        var isWireless = _device?.IsWireless == true;
+        if (!await ConfirmAsync("断开连接", "确定要断开 " + serial + " 吗？", "断开", "取消")) return;
+
+        // 停止正在运行的投屏并抑制自动重连，确保“断开”真正生效
+        _scrcpy.Stop(serial);
+        _suppressAutoReconnect = true;
+        if (!isWireless) _suppressedSerial = serial;
 
         try
         {
-            if (_device?.IsWireless == true) await Adb.DisconnectAsync(_serial);
+            if (isWireless) await Adb.DisconnectAsync(serial);
         }
         catch (Exception ex)
         {
             Log.Warn("断开失败：" + ex.Message);
         }
+
+        Interlocked.Increment(ref _deviceEpoch);
         DetachHelper();
         _serial = "";
         _device = null;
         ApplyDeviceUi(null);
-        Toast("已断开");
+        Toast("已断开 " + serial);
     }
 
     /// <summary>取当前设备的 wlan0 IP，用于预填配对/连接地址。</summary>
@@ -549,6 +861,15 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
 
     // ───────────────────────── 投屏 ─────────────────────────
 
+    private void UpdateCastVisual()
+    {
+        var casting = !string.IsNullOrEmpty(_serial) && _scrcpy.IsRunning(_serial);
+        DotCasting.IsVisible = casting;
+        TxtCastBtn.Text = casting ? "投屏运行中" : "开始投屏";
+        if (!casting && string.IsNullOrEmpty(_serial))
+            TxtCastStatus.Text = "未投屏";
+    }
+
     private async void BtnCast_Click(object? sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(_serial)) { Toast("先连接设备", true); return; }
@@ -556,16 +877,18 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         try
         {
             await _scrcpy.StartAsync(_serial, _settings);
+            UpdateCastVisual();
         }
         finally
         {
-            BtnCast.IsEnabled = true;
+            BtnCast.IsEnabled = _device?.IsOnline == true;
         }
     }
 
     private void BtnStopCast_Click(object? sender, RoutedEventArgs e)
     {
         if (!string.IsNullOrEmpty(_serial)) _scrcpy.Stop(_serial);
+        UpdateCastVisual();
     }
 
     private void OnCastStatus(string serial, string message, bool error)
@@ -573,7 +896,8 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         Dispatcher.UIThread.Post(() =>
         {
             TxtCastStatus.Text = message;
-            TxtCastStatus.Foreground = new SolidColorBrush(Color.Parse(error ? "#FFB4AB" : "#8FA8A4"));
+            TxtCastStatus.Foreground = error ? BrushDanger : (_scrcpy.IsRunning(serial) ? BrushOnline : BrushDim);
+            UpdateCastVisual();
             if (error) Toast(message, true);
         });
     }
@@ -583,15 +907,14 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     private void OnClipboardReceived(string text)
     {
         if (!_settings.SyncClipboard || string.IsNullOrEmpty(text)) return;
-        if (text == _lastClip) return;
-        _lastClip = text;
         Dispatcher.UIThread.Post(async () =>
         {
+            if (string.Equals(text, _lastClip, StringComparison.Ordinal)) return;
+            _lastClip = text;
             try
             {
-                var transfer = new DataTransfer();
-                transfer.Add(DataTransferItem.CreateText(text));
-                await Clipboard!.SetDataAsync(transfer);
+                if (Clipboard is not null)
+                    await Clipboard.SetTextAsync(text);
             }
             catch (Exception ex) { Log.Warn("写剪贴板失败：" + ex.Message); }
         });
@@ -622,30 +945,55 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     private async Task RequestAppsAsync()
     {
         if (_helper is not { IsConnected: true }) return;
+        lock (_tempAppsGate) _tempApps.Clear();
         TxtAppsCount.Text = "同步中…";
         await _helper.RequestAppsAsync();
     }
 
-    private async Task RequestSmsAsync()
+    private async Task RequestSmsAsync(bool clearExisting = false)
     {
         if (_helper is not { IsConnected: true }) return;
+        lock (_tempSmsGate) _tempSms.Clear();
+        if (clearExisting) _smsResetPending = true;
         await _helper.RequestSmsAsync();
     }
 
     // ───────────────────────── UI 工具 ─────────────────────────
 
-    private void Toast(string message, bool error = false)
+    private void Toast(string message, bool error = false, bool success = false)
     {
+        var accentColor = error ? "#FF6B6B" : (success ? "#56D364" : "#6FD3FF");
+        var bgColor = error ? "#F0251215" : "#F00E1924";
+        var borderColor = error ? "#55FF6B6B" : (success ? "#4456D364" : "#3A6FD3FF");
+
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 10 };
+        grid.Children.Add(new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = new SolidColorBrush(Color.Parse(accentColor))
+        });
+        var textBlock = new TextBlock
+        {
+            Text = message,
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12.8,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+        Grid.SetColumn(textBlock, 1);
+        grid.Children.Add(textBlock);
+
         var border = new Border
         {
-            Background = new SolidColorBrush(Color.Parse(error ? "#3A1618" : "#17222F")),
-            BorderBrush = new SolidColorBrush(Color.Parse(error ? "#FF6B6B" : "#2A3A37")),
+            Background = new SolidColorBrush(Color.Parse(bgColor)),
+            BorderBrush = new SolidColorBrush(Color.Parse(borderColor)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(14, 10),
-            MaxWidth = 460
+            Padding = new Thickness(11, 10, 14, 10),
+            MaxWidth = 420,
+            BoxShadow = BoxShadows.Parse("0 10 26 0 #66000000"),
+            Child = grid
         };
-        border.Child = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, FontSize = 13 };
         border.Opacity = 0;
         border.RenderTransform = TransformOperations.Parse("translateY(10px)");
         border.Transitions = new Transitions
@@ -653,6 +1001,10 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
             new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180), Easing = new CubicEaseOut() },
             new TransformOperationsTransition { Property = RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(220), Easing = new CubicEaseOut() }
         };
+
+        while (ToastStack.Children.Count >= 4)
+            ToastStack.Children.RemoveAt(0);
+
         ToastStack.Children.Add(border);
         Dispatcher.UIThread.Post(() =>
         {
@@ -673,59 +1025,66 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         timer.Start();
     }
 
-    private Task<bool> ConfirmAsync(string title, string body, string ok = "确定", string cancel = "取消")
+    private async Task<bool> ConfirmAsync(string title, string body, string ok = "确定", string cancel = "取消")
     {
-        DialogTitle.Text = title;
-        DialogBody.Text = body;
-        DialogInput.IsVisible = false;
-        BtnDialogOk.Content = ok;
-        BtnDialogCancel.Content = cancel;
-        return ShowDialogAsync(false);
+        await _dialogGate.WaitAsync();
+        try
+        {
+            DialogTitle.Text = title;
+            DialogBody.Text = body;
+            DialogInput.IsVisible = false;
+            BtnDialogOk.Content = ok;
+            BtnDialogCancel.Content = cancel;
+            var tcs = new TaskCompletionSource<bool?>();
+            _dialogTcs = tcs;
+            DialogOverlay.IsVisible = true;
+            return await tcs.Task == true;
+        }
+        finally
+        {
+            _dialogGate.Release();
+        }
     }
 
-    private Task<string?> PromptAsync(string title, string body, string initial = "")
+    private async Task<string?> PromptAsync(string title, string body, string initial = "")
     {
-        DialogTitle.Text = title;
-        DialogBody.Text = body;
-        DialogInput.IsVisible = true;
-        DialogInput.Text = initial;
-        BtnDialogOk.Content = "确定";
-        BtnDialogCancel.Content = "取消";
-        var tcs = new TaskCompletionSource<bool?>();
-        _dialogTcs = tcs;
-        DialogOverlay.IsVisible = true;
-        DialogInput.Focus();
-        return AwaitPrompt(tcs);
+        await _dialogGate.WaitAsync();
+        try
+        {
+            DialogTitle.Text = title;
+            DialogBody.Text = body;
+            DialogInput.IsVisible = true;
+            DialogInput.Text = initial;
+            BtnDialogOk.Content = "确定";
+            BtnDialogCancel.Content = "取消";
+            var tcs = new TaskCompletionSource<bool?>();
+            _dialogTcs = tcs;
+            DialogOverlay.IsVisible = true;
+            DialogInput.Focus();
+            DialogInput.SelectAll();
+            var ok = await tcs.Task;
+            return ok == true ? DialogInput.Text?.Trim() : null;
+        }
+        finally
+        {
+            _dialogGate.Release();
+        }
     }
-
-    private async Task<string?> AwaitPrompt(TaskCompletionSource<bool?> tcs)
-    {
-        var ok = await tcs.Task;
-        return ok == true ? DialogInput.Text?.Trim() : null;
-    }
-
-    private Task<bool> ShowDialogAsync(bool _)
-    {
-        var tcs = new TaskCompletionSource<bool?>();
-        _dialogTcs = tcs;
-        DialogOverlay.IsVisible = true;
-        return AwaitBool(tcs);
-    }
-
-    private async Task<bool> AwaitBool(TaskCompletionSource<bool?> tcs) => await tcs.Task == true;
 
     private void BtnDialogOk_Click(object? sender, RoutedEventArgs e)
     {
         DialogOverlay.IsVisible = false;
-        _dialogTcs?.TrySetResult(true);
+        var tcs = _dialogTcs;
         _dialogTcs = null;
+        tcs?.TrySetResult(true);
     }
 
     private void BtnDialogCancel_Click(object? sender, RoutedEventArgs e)
     {
         DialogOverlay.IsVisible = false;
-        _dialogTcs?.TrySetResult(false);
+        var tcs = _dialogTcs;
         _dialogTcs = null;
+        tcs?.TrySetResult(false);
     }
 
     private void Busy(string text, bool on)
@@ -739,7 +1098,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     private void OnDragOver(object? sender, DragEventArgs e)
     {
         var files = e.DataTransfer?.TryGetFiles()?.ToList() ?? new();
-        if (files.Count == 0) return;
+        if (files.Count == 0 || string.IsNullOrEmpty(_serial)) return;
 
         e.DragEffects = DragDropEffects.Copy;
         DropOverlay.IsVisible = true;
@@ -752,6 +1111,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
     private async void OnDrop(object? sender, DragEventArgs e)
     {
         DropOverlay.IsVisible = false;
+        if (string.IsNullOrEmpty(_serial)) { Toast("先连接设备", true); return; }
         var items = e.DataTransfer?.TryGetFiles()?.ToList();
         if (items == null || items.Count == 0) return;
 
@@ -768,27 +1128,38 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         await UploadFilesAsync(paths);
     }
 
-    // ───────────────────────── 设置（连接/剪贴板等） ─────────────────────────
+    // ───────────────────────── 媒体与上次设备 ─────────────────────────
 
-    private async void BtnClearLast_Click(object? sender, RoutedEventArgs e)
+    private void UpdateLastEndpointUi()
+    {
+        TxtLastEndpoint.Text = string.IsNullOrWhiteSpace(_settings.LastEndpoint)
+            ? "上次设备：—"
+            : "上次设备：" + _settings.LastEndpoint;
+    }
+
+    private void BtnClearLast_Click(object? sender, RoutedEventArgs e)
     {
         _settings.LastEndpoint = "";
         SettingsStore.Save();
-        TxtLastEndpoint.Text = "上次设备：—";
+        UpdateLastEndpointUi();
         Toast("已清除上次设备");
-        await Task.CompletedTask;
+    }
+
+    private void UpdateMediaUi(MediaInfo media)
+    {
+        var hasTrack = !string.IsNullOrWhiteSpace(media.Title);
+        TxtMediaTitle.Text = hasTrack ? media.Title : "没有正在播放的媒体";
+        TxtMediaArtist.Text = hasTrack ? media.Artist : "";
+        _mediaPlaying = media.Playing;
+        IconPlay.IsVisible = !_mediaPlaying;
+        IconPause.IsVisible = _mediaPlaying;
+        TxtMediaState.Text = !hasTrack ? "空闲" : (_mediaPlaying ? "播放中" : "已暂停");
+        MediaArtBorder.BorderBrush = _mediaPlaying ? BrushOnline : new SolidColorBrush(Color.Parse("#1F3342"));
     }
 
     private void OnMediaChanged(MediaInfo media)
     {
-        Dispatcher.UIThread.Post(() =>
-        {
-            TxtMediaTitle.Text = string.IsNullOrWhiteSpace(media.Title) ? "没有正在播放的媒体" : media.Title;
-            TxtMediaArtist.Text = media.Artist;
-            _mediaPlaying = media.Playing;
-            IconPlay.IsVisible = !_mediaPlaying;
-            IconPause.IsVisible = _mediaPlaying;
-        });
+        Dispatcher.UIThread.Post(() => UpdateMediaUi(media));
     }
 
     private async void BtnMediaPrev_Click(object? sender, RoutedEventArgs e)
@@ -801,7 +1172,7 @@ public partial class MainWindow : SukiUI.Controls.SukiWindow
         if (_helper is not { IsConnected: true }) return;
         await _helper.MediaCommandAsync(_mediaPlaying ? "pause" : "play");
         await Task.Delay(300);
-        await _helper.RequestMediaAsync();
+        if (_helper is { IsConnected: true }) await _helper.RequestMediaAsync();
     }
 
     private async void BtnMediaNext_Click(object? sender, RoutedEventArgs e)

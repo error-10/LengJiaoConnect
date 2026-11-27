@@ -16,7 +16,7 @@ public sealed record AdbResult(int ExitCode, string StdOut, string StdErr, bool 
 /// <summary>
 /// adb 进程封装。要点：
 /// 1) 一律用 ArgumentList 传参，不再手拼引号（中文/空格路径不会再被截断）；
-/// 2) 每条命令都有超时，卡死就杀进程树，绝不永久阻塞线程；
+/// 2) 每条命令都有超时（含 stdout/stderr 管道读取），卡死就杀进程树，绝不永久阻塞线程；
 /// 3) 输出按 UTF-8 解码，中文文件名不再乱码。
 /// </summary>
 public static class Adb
@@ -56,24 +56,25 @@ public static class Adb
             if (!process.Start())
                 return new AdbResult(-1, "", "无法启动 adb 进程");
 
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(timeoutMs);
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+            var stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
+
             try
             {
                 await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+                var stdout = await stdoutTask.ConfigureAwait(false);
+                var stderr = await stderrTask.ConfigureAwait(false);
+                return new AdbResult(process.ExitCode, stdout, stderr);
             }
             catch (OperationCanceledException)
             {
                 try { process.Kill(entireProcessTree: true); } catch { }
-                return new AdbResult(-1, "", "adb 命令超时（" + timeoutMs + "ms）", true);
+                var timedOut = !cancellationToken.IsCancellationRequested;
+                return new AdbResult(-1, "", timedOut ? "adb 命令超时（" + timeoutMs + "ms）" : "adb 命令已取消", timedOut);
             }
-
-            var stdout = await stdoutTask.ConfigureAwait(false);
-            var stderr = await stderrTask.ConfigureAwait(false);
-            return new AdbResult(process.ExitCode, stdout, stderr);
         }
         catch (Exception ex)
         {
@@ -86,10 +87,13 @@ public static class Adb
 
     // ---------- 设备 ----------
 
-    public static async Task<List<DeviceInfo>> GetDevicesAsync(CancellationToken ct = default)
+    public static async Task<(bool Ok, List<DeviceInfo> Devices)> TryGetDevicesAsync(CancellationToken ct = default)
     {
         var result = await RunAsync(new[] { "devices", "-l" }, 8000, ct).ConfigureAwait(false);
         var list = new List<DeviceInfo>();
+        if (!result.Ok)
+            return (false, list);
+
         foreach (var raw in result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
             var line = raw.Trim();
@@ -112,7 +116,13 @@ public static class Adb
                 Model = modelMatch.Success ? modelMatch.Groups[1].Value.Replace('_', ' ') : ""
             });
         }
-        return list;
+        return (true, list);
+    }
+
+    public static async Task<List<DeviceInfo>> GetDevicesAsync(CancellationToken ct = default)
+    {
+        var (_, devices) = await TryGetDevicesAsync(ct).ConfigureAwait(false);
+        return devices;
     }
 
     public static Task<AdbResult> ConnectAsync(string endpoint) =>

@@ -4,13 +4,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using LengJiaoConnect.Services;
 using Microsoft.Win32;
@@ -20,43 +20,57 @@ namespace LengJiaoConnect;
 public partial class MainWindow
 {
     private DateTime _lastUpdateCheckUtc = DateTime.MinValue;
+    private string? _availableRemoteVersion;
+    private string _lastUpdateServerStamp = "";
 
     private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "LengJiaoConnect";
     private const string RepoUrl = "https://github.com/error-10/LengJiaoConnect";
     private const string VersionUrl = "https://biu.miqwq.com/index.html";
     private const string ExpectedPoem = "北冥有鱼，其名为鲲，鲲之大，一锅炖不下";
-    private const string CurrentVersion = "3.2.5";
 
-    private void WireHelperEvents()
+    // 单一真相来源：直接读 .csproj 的 <Version>
+    private static readonly string CurrentVersion = ResolveCurrentVersion();
+
+    private static string ResolveCurrentVersion()
     {
-        if (_helper == null) return;
-        _helper.ClipboardReceived += OnClipboardReceived;
-        _helper.NotificationReceived += OnNotificationReceived;
-        _helper.PermissionChanged += OnPermissionChanged;
-        _helper.MediaChanged += OnMediaChanged;
-        _helper.AppReceived += OnAppReceived;
-        _helper.AppsCompleted += OnAppsCompleted;
-        _helper.SmsReceived += OnSmsReceived;
-        _helper.Disconnected += (_, _) => Dispatcher.UIThread.Post(() =>
+        var v = Assembly.GetExecutingAssembly().GetName().Version;
+        return v == null ? "3.2.6" : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
+
+    private void WireHelperEvents(HelperClient helper, int epoch)
+    {
+        helper.ClipboardReceived += OnClipboardReceived;
+        helper.NotificationReceived += OnNotificationReceived;
+        helper.PermissionChanged += OnPermissionChanged;
+        helper.MediaChanged += OnMediaChanged;
+        helper.AppReceived += OnAppReceived;
+        helper.AppsCompleted += OnAppsCompleted;
+        helper.SmsReceived += OnSmsReceived;
+        helper.Disconnected += (_, _) => Dispatcher.UIThread.Post(() =>
         {
+            if (_deviceEpoch != epoch || !ReferenceEquals(_helper, helper)) return;
             TxtHelperStatus.Text = "助手连接已断开";
             TxtSideHint.Text = "助手未连接";
             UpdateHomeHelper();
-            _ = TryReconnectHelperAsync();
+            _ = TryReconnectHelperAsync(helper, epoch);
         });
     }
 
-    private async Task TryReconnectHelperAsync()
+    private async Task TryReconnectHelperAsync(HelperClient helper, int epoch)
     {
         await Task.Delay(2000);
-        var helper = _helper;
-        for (var i = 0; i < 3 && helper is { IsConnected: false }; i++)
+        for (var i = 0; i < 3; i++)
         {
+            if (_deviceEpoch != epoch || !ReferenceEquals(_helper, helper) || !_helperInstalled || string.IsNullOrEmpty(_serial))
+                return;
+            if (helper.IsConnected) return;
+
             try
             {
                 if (await helper.ConnectAsync())
                 {
+                    if (_deviceEpoch != epoch || !ReferenceEquals(_helper, helper)) return;
                     await helper.CheckPermissionAsync();
                     Dispatcher.UIThread.Post(UpdateHomeHelper);
                     return;
@@ -67,7 +81,7 @@ public partial class MainWindow
                 Log.Warn("助手重连失败：" + ex.Message);
             }
 
-            await Task.Delay(2500);
+            await Task.Delay(3000 * (i + 1));
         }
     }
 
@@ -87,8 +101,11 @@ public partial class MainWindow
         ChkCastScreenOff.IsChecked = _settings.CastScreenOff;
         (Q0.IsChecked, Q1.IsChecked, Q2.IsChecked) = (_settings.Quality == 0, _settings.Quality == 1, _settings.Quality == 2);
 
-        TxtLastEndpoint.Text = string.IsNullOrWhiteSpace(_settings.LastEndpoint) ? "上次设备：—" : "上次设备：" + _settings.LastEndpoint;
-        TxtVersion.Text = "版本 " + CurrentVersion;
+        UpdateLastEndpointUi();
+        TxtVersion.Text = "v" + CurrentVersion;
+        TxtSideVersion.Text = "v" + CurrentVersion;
+        TxtRemoteVersion.Text = "等待检查";
+        TxtUpdateBadge.Text = "待检查";
         SyncAutoStartCheckbox();
     }
 
@@ -120,8 +137,6 @@ public partial class MainWindow
         var stored = ReadAutoStartValue();
         var enabled = SamePath(stored, Environment.ProcessPath);
 
-        // 换了新版本、或者把目录挪了之后，旧的自启项还指着老路径：
-        // 直接改写成本次运行的 exe，不然开关显示“已开”，开机跑的却是老版本。
         if (!enabled && !string.IsNullOrWhiteSpace(stored) && SetAutoStart(true)) enabled = true;
 
         _settings.AutoStart = enabled;
@@ -130,6 +145,7 @@ public partial class MainWindow
 
     private static string? ReadAutoStartValue()
     {
+        if (!OperatingSystem.IsWindows()) return null;
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
@@ -148,10 +164,9 @@ public partial class MainWindow
         return string.Equals(stored.Trim().Trim('"'), exe.Trim().Trim('"'), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsAutoStartEnabled() => SamePath(ReadAutoStartValue(), Environment.ProcessPath);
-
     private static bool SetAutoStart(bool enabled)
     {
+        if (!OperatingSystem.IsWindows()) return false;
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
@@ -182,7 +197,7 @@ public partial class MainWindow
         if (string.IsNullOrEmpty(_serial))
         {
             TxtHelperStatus.Text = "助手：未连接设备";
-            TxtPhoneUpdate.Text = "";
+            TxtPhoneUpdate.Text = "未连接设备";
             BtnPhoneUpdate.IsVisible = false;
             _helperInstalled = false;
             UpdateHomeHelper();
@@ -205,7 +220,7 @@ public partial class MainWindow
             var listeners = await Adb.ShellTextAsync(_serial, "settings get secure enabled_notification_listeners");
             var granted = listeners.Contains("com.lengjiao.helper");
             var installedVer = version.Contains("versionName=") ? version.Split('=').Last().Trim() : "";
-            TxtHelperStatus.Text = $"助手已安装{(installedVer.Length > 0 ? " · " + installedVer : "")} · 通知监听{(granted ? "已授权" : "未授权")}";
+            TxtHelperStatus.Text = $"助手已安装{(installedVer.Length > 0 ? " · v" + installedVer : "")} · 通知监听{(granted ? "已授权" : "未授权")}";
             _helperInstalled = true;
             _helperNotif = granted;
             UpdatePhoneUpdateHint(installedVer);
@@ -223,7 +238,7 @@ public partial class MainWindow
         {
             var manifest = Path.Combine(AppContext.BaseDirectory, "HelperApk", "AndroidManifest.xml");
             if (!File.Exists(manifest)) return "";
-            var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(manifest), "android:versionName=\"([^\"]+)\"");
+            var m = Regex.Match(File.ReadAllText(manifest), "android:versionName=\"([^\"]+)\"");
             return m.Success ? m.Groups[1].Value : "";
         }
         catch { return ""; }
@@ -235,18 +250,20 @@ public partial class MainWindow
         var apkVer = ReadApkVersionName();
         if (string.IsNullOrEmpty(apkVer))
         {
-            TxtPhoneUpdate.Text = "";
+            TxtPhoneUpdate.Text = "—";
             BtnPhoneUpdate.IsVisible = false;
             return;
         }
         if (string.IsNullOrEmpty(installedVer))
         {
-            TxtPhoneUpdate.Text = $"手机助手未安装 · 可安装 {apkVer}";
+            TxtPhoneUpdate.Text = $"未安装 · 可安装 v{apkVer}";
+            BtnPhoneUpdate.Content = "安装助手";
             BtnPhoneUpdate.IsVisible = true;
             return;
         }
         var newer = Version.TryParse(installedVer, out var a) && Version.TryParse(apkVer, out var b) && b > a;
-        TxtPhoneUpdate.Text = newer ? $"手机助手 {installedVer} · 可更新到 {apkVer}" : $"手机助手 {installedVer} · 已是最新";
+        TxtPhoneUpdate.Text = newer ? $"v{installedVer} → 可更新至 v{apkVer}" : $"v{installedVer} · 已是最新";
+        BtnPhoneUpdate.Content = "更新助手";
         BtnPhoneUpdate.IsVisible = newer;
     }
 
@@ -263,9 +280,6 @@ public partial class MainWindow
         await InstallHelperAsync(interactive: true);
     }
 
-    /// <summary>
-    /// 第一次连上一台手机时问一次：要不要装助手。装过的不再唠叨。
-    /// </summary>
     private async Task MaybeOfferHelperAsync(bool force = false)
     {
         if (string.IsNullOrEmpty(_serial)) return;
@@ -321,16 +335,22 @@ public partial class MainWindow
                 _helper.Dispose();
                 _helper = null;
             }
-            _helper = new HelperClient(_serial);
-            WireHelperEvents();
+            var helper = new HelperClient(_serial);
+            var epoch = _deviceEpoch;
+            _helper = helper;
+            WireHelperEvents(helper, epoch);
 
-            if (await _helper.ConnectAsync())
+            if (await helper.ConnectAsync())
             {
-                await _helper.CheckPermissionAsync();
+                await helper.CheckPermissionAsync();
+                if (_settings.SyncApps) await RequestAppsAsync();
+                if (_settings.SyncSms) await RequestSmsAsync();
+                await helper.RequestMediaAsync();
+                if (interactive) Toast("助手已就绪并建立连接", success: true);
             }
             else if (interactive)
             {
-                Toast("助手已安装，但还没连上——多半是通知监听没开。", true);
+                Toast("助手已安装，但还没连上——请确认通知使用权已开启。", true);
             }
 
             await EnsureHelperPermissionsAsync(interactive);
@@ -343,9 +363,6 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// 装完之后把缺的权限补齐：短信能自动授，通知使用权有的系统得手动勾。
-    /// </summary>
     private async Task EnsureHelperPermissionsAsync(bool interactive)
     {
         if (string.IsNullOrEmpty(_serial)) return;
@@ -375,7 +392,7 @@ public partial class MainWindow
                     notifOk = await WaitForPermissionAsync(ProbeNotificationPermissionAsync, 90);
                     _helperNotif = notifOk;
                     UpdateHomeHelper();
-                    Toast(notifOk ? "通知使用权已开" : "还没检测到授权，稍后可在设置页重试", !notifOk);
+                    Toast(notifOk ? "通知使用权已开" : "还没检测到授权，稍后可在设置页重试", !notifOk, notifOk);
                 }
             }
 
@@ -393,7 +410,7 @@ public partial class MainWindow
                     smsOk = await WaitForPermissionAsync(ProbeSmsPermissionAsync, 90);
                     _helperSms = smsOk;
                     UpdateHomeHelper();
-                    Toast(smsOk ? "短信权限已开" : "还没检测到授权，稍后可在设置页重试", !smsOk);
+                    Toast(smsOk ? "短信权限已开" : "还没检测到授权，稍后可在设置页重试", !smsOk, smsOk);
                 }
             }
         }
@@ -417,13 +434,11 @@ public partial class MainWindow
         var dumpsys = await Adb.ShellTextAsync(_serial, "dumpsys package com.lengjiao.helper | grep READ_SMS");
         if (dumpsys.Contains("granted=true")) return true;
 
-        // 有的 ROM 允许 shell 直接授，授完再查一次
         await Adb.ShellAsync(_serial, "pm grant com.lengjiao.helper android.permission.READ_SMS");
         dumpsys = await Adb.ShellTextAsync(_serial, "dumpsys package com.lengjiao.helper | grep READ_SMS");
         return dumpsys.Contains("granted=true");
     }
 
-    /// <summary>用户去手机上点授权，这边每 2 秒看一次，最多等 timeoutSeconds 秒。</summary>
     private static async Task<bool> WaitForPermissionAsync(Func<Task<bool>> probe, int timeoutSeconds)
     {
         var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
@@ -434,52 +449,48 @@ public partial class MainWindow
             {
                 if (await probe()) return true;
             }
-            catch
-            {
-                // 手机上正在切页面，adb 偶发失败不算异常
-            }
+            catch { }
         }
 
         return false;
     }
 
-    /// <summary>主页那张“高级互联”状态条：安装/连接/权限三种状态都写在这里。</summary>
     private void UpdateHomeHelper()
     {
         if (TxtHelperHome is null || DotHelper is null) return;
 
         string text;
-        string color;
+        IBrush brush;
 
         if (string.IsNullOrEmpty(_serial))
         {
             text = "高级互联 · 未连接设备";
-            color = "#64758A";
+            brush = BrushOffline;
         }
         else if (!_helperInstalled)
         {
             text = "高级互联 · 未安装，点这里安装";
-            color = "#FFD166";
+            brush = BrushWarn;
         }
         else if (_helper?.IsConnected != true)
         {
             text = "高级互联 · 未连接，点这里重试";
-            color = "#FFD166";
+            brush = BrushWarn;
         }
         else if (!_helperSms || !_helperNotif)
         {
             var missing = !_helperSms && !_helperNotif ? "短信、通知权限" : (!_helperSms ? "短信权限" : "通知权限");
             text = $"高级互联 · 已连接 · 缺{missing}，点这里授权";
-            color = "#FFD166";
+            brush = BrushWarn;
         }
         else
         {
             text = "高级互联 · 已连接";
-            color = "#6FD3FF";
+            brush = BrushOnline;
         }
 
         TxtHelperHome.Text = text;
-        DotHelper.Fill = new SolidColorBrush(Color.Parse(color));
+        DotHelper.Fill = brush;
     }
 
     private async void BtnHomeHelper_Click(object? sender, PointerPressedEventArgs e)
@@ -500,11 +511,26 @@ public partial class MainWindow
         {
             Busy("正在重连助手…", true);
             var ok = false;
-            try { ok = _helper != null && await _helper.ConnectAsync(); }
+            try
+            {
+                if (_helper == null)
+                {
+                    _helper = new HelperClient(_serial);
+                    WireHelperEvents(_helper, _deviceEpoch);
+                }
+                ok = await _helper.ConnectAsync();
+                if (ok)
+                {
+                    await _helper.CheckPermissionAsync();
+                    if (_settings.SyncApps) await RequestAppsAsync();
+                    if (_settings.SyncSms) await RequestSmsAsync();
+                    await _helper.RequestMediaAsync();
+                }
+            }
             catch (Exception ex) { Log.Warn("助手重连失败：" + ex.Message); }
             Busy("", false);
             await RefreshHelperStatusAsync();
-            Toast(ok ? "助手已重新连上" : "助手没连上：确认手机上的通知使用权还开着", !ok);
+            Toast(ok ? "助手已重新连上" : "助手没连上：确认手机上的通知使用权还开着", !ok, ok);
             return;
         }
 
@@ -514,7 +540,7 @@ public partial class MainWindow
             return;
         }
 
-        Toast("高级互联正常：剪贴板、通知、短信都在同步");
+        Toast("高级互联正常：剪贴板、通知、短信都在同步", success: true);
     }
 
     private async void BtnRevokeHelper_Click(object? sender, RoutedEventArgs e)
@@ -525,17 +551,19 @@ public partial class MainWindow
         Busy("正在卸载…", true);
         try
         {
-            DetachHelper();
+            if (_helper != null) { _helper.Dispose(); _helper = null; }
             var r = await Adb.RunAsync(new[] { "-s", _serial, "uninstall", "com.lengjiao.helper" });
-            Toast(r.Best.Contains("Success") ? "助手已卸载" : "卸载失败：" + r.Best, !r.Best.Contains("Success"));
+            var ok = r.Best.Contains("Success");
+            Toast(ok ? "助手已卸载" : "卸载失败：" + r.Best, !ok, ok);
             await RefreshHelperStatusAsync();
         }
         finally { Busy("", false); }
     }
 
+    // ───────────────────────── 软件内更新检查与弹窗 ─────────────────────────
+
     private sealed record UpdatePage(string Html, DateTimeOffset ServerTime, string CacheState);
 
-    /// <summary>拉更新页：加时间戳绕缓存，并判断拿到的是不是 CDN 缓存副本。</summary>
     private async Task<UpdatePage?> FetchUpdatePageAsync()
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
@@ -576,42 +604,54 @@ public partial class MainWindow
         return null;
     }
 
+    private void SetUpdateBadge(string text, string bgHex, string fgHex, bool hasUpdate)
+    {
+        TxtUpdateBadge.Text = text;
+        BadgeUpdateState.Background = new SolidColorBrush(Color.Parse(bgHex));
+        TxtUpdateBadge.Foreground = new SolidColorBrush(Color.Parse(fgHex));
+        BadgeNavUpdate.IsVisible = hasUpdate;
+        BtnOpenUpdateModal.IsVisible = hasUpdate;
+    }
+
     private async Task<string?> CheckUpdatesAsync(bool silent)
     {
+        BtnCheckUpdate.IsEnabled = false;
+        SetUpdateBadge("检查中…", "#186FD3FF", "#8EE0FF", false);
         try
         {
             var page = await FetchUpdatePageAsync();
             if (page is null)
             {
                 TxtUpdateStatus.Text = "拿到的是缓存页面，已跳过本次检查（请稍后重试）。";
+                SetUpdateBadge("缓存跳过", "#24FFD166", "#FFD166", false);
                 return null;
             }
 
-            // ① 服务器时间：和本地时间对一下，顺便证明服务器活着、不是旧缓存
             var serverLocal = page.ServerTime.ToOffset(TimeSpan.FromHours(8));
             var skew = (DateTimeOffset.UtcNow - page.ServerTime).Duration();
             Log.Info($"更新检查：服务器时间 {serverLocal:yyyy-MM-dd HH:mm:ss}，本地时间 {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}，偏差 {skew.TotalSeconds:F0}s，X-Cache={page.CacheState}");
             if (skew > TimeSpan.FromMinutes(30))
             {
                 TxtUpdateStatus.Text = $"服务器时间对不上（差 {skew.TotalMinutes:F0} 分钟），可能是缓存页或服务器异常，已跳过。";
+                SetUpdateBadge("时间异常", "#24FFD166", "#FFD166", false);
                 return null;
             }
 
             var html = page.Html;
 
-            // ③ 校验语：服务器内容是否被篡改
             var poem = Regex.Match(html, @"<div id=""poem"">\s*(?<p>[^<]+)\s*</div>");
             if (!poem.Success || !poem.Groups["p"].Value.Contains(ExpectedPoem))
             {
                 TxtUpdateStatus.Text = "校验失败：校验语不对，返回内容可能被篡改，已停止更新检查。";
+                SetUpdateBadge("校验失败", "#2AFF6B6B", "#FFB4AB", false);
                 return null;
             }
 
-            // ② 版本号正文
             var version = Regex.Match(html, @"<div id=""version"">\s*(?<v>[^<]+)\s*</div>");
             if (!version.Success)
             {
                 if (!silent) TxtUpdateStatus.Text = "没有解析到版本号。";
+                SetUpdateBadge("解析失败", "#24FFD166", "#FFD166", false);
                 return null;
             }
 
@@ -619,72 +659,104 @@ public partial class MainWindow
             if (!Regex.IsMatch(remote, @"^\d+\.\d+(\.\d+)?$"))
             {
                 TxtUpdateStatus.Text = $"版本号格式异常（{remote}），已停止更新检查。";
+                SetUpdateBadge("格式异常", "#2AFF6B6B", "#FFB4AB", false);
                 return null;
             }
 
             _lastUpdateCheckUtc = DateTime.UtcNow;
-            var stamp = serverLocal.ToString("HH:mm");
+            _lastUpdateServerStamp = serverLocal.ToString("yyyy-MM-dd HH:mm");
+
             if (Version.TryParse(remote, out var rv) && Version.TryParse(CurrentVersion, out var cv) && rv > cv)
             {
-                TxtUpdateStatus.Text = $"发现新版本 {remote}（当前 {CurrentVersion}）";
+                _availableRemoteVersion = remote;
+                TxtRemoteVersion.Text = "可更新至 v" + remote;
+                TxtUpdateStatus.Text = $"检测到新版本 v{remote}（服务器校时 {_lastUpdateServerStamp} · 内容校验通过）";
+                SetUpdateBadge($"新版本 v{remote}", "#28FF8A65", "#FFB49A", true);
                 return remote;
             }
 
-            TxtUpdateStatus.Text = $"电脑版 {CurrentVersion} · 已是最新（服务器 {stamp}）";
+            _availableRemoteVersion = null;
+            TxtRemoteVersion.Text = "已是最新版本";
+            TxtUpdateStatus.Text = $"当前已是最新版本（服务器校时 {_lastUpdateServerStamp} · 内容校验通过）";
+            SetUpdateBadge("已是最新", "#1F56D364", "#7EE787", false);
             return null;
         }
         catch (Exception ex)
         {
             if (!silent) TxtUpdateStatus.Text = "检查更新失败：" + ex.Message;
+            SetUpdateBadge("检查失败", "#2AFF6B6B", "#FFB4AB", false);
             Log.Warn("检查更新失败：" + ex.Message);
             return null;
         }
+        finally
+        {
+            BtnCheckUpdate.IsEnabled = true;
+        }
     }
 
-    /// <summary>启动时静默检查，有新版就弹窗；同一版本只弹一次。</summary>
     private async Task CheckUpdatesOnStartupAsync()
     {
         await Task.Delay(900);
         var remote = await CheckUpdatesAsync(silent: true);
         if (string.IsNullOrEmpty(remote)) return;
-        await PromptUpdateAsync(remote, force: false);
+        ShowUpdateModal(remote, force: false);
     }
 
-    /// <summary>从托盘回到窗口时，半小时最多查一次。</summary>
     private async Task CheckUpdatesOnShowAsync()
     {
         if (DateTime.UtcNow - _lastUpdateCheckUtc < TimeSpan.FromMinutes(30)) return;
         var remote = await CheckUpdatesAsync(silent: true);
         if (string.IsNullOrEmpty(remote)) return;
-        await PromptUpdateAsync(remote, force: false);
+        ShowUpdateModal(remote, force: false);
     }
 
-    private async Task PromptUpdateAsync(string remote, bool force)
+    private void ShowUpdateModal(string remote, bool force)
     {
         if (!force && string.Equals(_settings.LastUpdatePrompt, remote, StringComparison.OrdinalIgnoreCase)) return;
+        if (DialogOverlay.IsVisible || InfoOverlay.IsVisible) return;
 
-        // 别在别的弹窗上再压一层
-        if (DialogOverlay.IsVisible)
+        TxtUpdateModalCurrent.Text = "v" + CurrentVersion;
+        TxtUpdateModalTarget.Text = "v" + remote;
+        TxtUpdateModalMeta.Text = string.IsNullOrEmpty(_lastUpdateServerStamp)
+            ? "内容与服务器时间校验通过"
+            : $"内容校验通过 · 服务器校时 {_lastUpdateServerStamp}";
+        TxtUpdateModalBody.Text = $"新版本 v{remote} 已发布。前往发布页即可下载最新绿色版覆盖更新，你的配置、缓存与常用应用记录都会保留在本地目录中。";
+        UpdateOverlay.IsVisible = true;
+        AnimateIn(UpdateOverlay, 8, 200);
+    }
+
+    private void BtnOpenUpdateModal_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(_availableRemoteVersion))
+            ShowUpdateModal(_availableRemoteVersion, force: true);
+    }
+
+    private void BtnUpdateGo_Click(object? sender, RoutedEventArgs e)
+    {
+        UpdateOverlay.IsVisible = false;
+        OpenUrl(RepoUrl + "/releases");
+    }
+
+    private void BtnUpdateLater_Click(object? sender, RoutedEventArgs e) => UpdateOverlay.IsVisible = false;
+
+    private void BtnUpdateSkip_Click(object? sender, RoutedEventArgs e)
+    {
+        UpdateOverlay.IsVisible = false;
+        if (!string.IsNullOrEmpty(_availableRemoteVersion))
         {
-            await Task.Delay(1200);
-            if (DialogOverlay.IsVisible) return;
+            _settings.LastUpdatePrompt = _availableRemoteVersion;
+            SettingsStore.Save();
+            Toast($"已忽略 v{_availableRemoteVersion} 启动弹窗（仍可在设置页查看）");
         }
-
-        _settings.LastUpdatePrompt = remote;
-        SettingsStore.Save();
-
-        var go = await ConfirmAsync(
-            "发现新版本 " + remote,
-            $"当前版本 {CurrentVersion}，新版本 {remote} 已经发布了。\n\n要打开下载页面看看吗？",
-            "去下载", "以后再说");
-        if (go) OpenUrl(RepoUrl + "/releases");
     }
 
     private async void BtnCheckUpdate_Click(object? sender, RoutedEventArgs e)
     {
         var remote = await CheckUpdatesAsync(silent: false);
-        if (string.IsNullOrEmpty(remote)) return;
-        await PromptUpdateAsync(remote, force: true);
+        if (!string.IsNullOrEmpty(remote))
+            ShowUpdateModal(remote, force: true);
+        else if (TxtUpdateBadge.Text == "已是最新")
+            Toast($"当前 v{CurrentVersion} 已是最新版本", success: true);
     }
 
     private static void OpenUrl(string url)
@@ -704,6 +776,7 @@ public partial class MainWindow
         TxtInfoTitle.Text = title;
         TxtInfoBody.Text = body;
         InfoOverlay.IsVisible = true;
+        AnimateIn(InfoOverlay, 8, 200);
     }
 
     private void BtnInfoClose_Click(object? sender, RoutedEventArgs e) => InfoOverlay.IsVisible = false;
@@ -717,7 +790,7 @@ public partial class MainWindow
             "1. 打字前按 Shift 或切到 ENG，让电脑处于英文输入状态；\n" +
             "2. 想打中文，就在手机端用手机自己的输入法；\n" +
             "3. 部分国产 ROM 会拦截 SDK 注入的按键，这时在首页打开「UHID 键盘」——投屏引擎会向手机伪装成一把真实插入的物理键盘，绕过检测。\n\n" +
-            "这一版投屏时会自动把 scrcpy 窗口切到 US 布局，退出后还原，正常情况下你不需要手动改系统输入法。");
+            "投屏窗口弹出时会自动切换为 US 键盘布局，不会影响电脑其他窗口的输入法。");
     }
 
     private void ShowTutorial_Click(object? sender, RoutedEventArgs e)
@@ -729,7 +802,7 @@ public partial class MainWindow
             "3. 无线连接：手机打开「无线调试」→「使用配对码配对设备」，点电脑顶栏的设备胶囊，在浮层里填 IP、配对端口和 6 位配对码；\n" +
             "4. 首次连接会提示安装手机助手（约 200KB）。装完后按提示授予「通知使用权」和「读取短信」，不授权也能用投屏和文件；\n" +
             "5. 首页点「开始投屏」；在应用页点任意图标，会自动启动该应用并拉起投屏窗口。\n\n" +
-            "文件页支持拖拽上传、双击下载，中文文件名已按完整路径传输，不会再被截断。");
+            "文件页支持拖拽上传、面包屑导航、快捷键（F5 刷新 / Backspace 上级 / F2 重命名 / Delete 删除）以及 Root 文件中转。");
     }
 
     private void BtnOpenLogs_Click(object? sender, RoutedEventArgs e)

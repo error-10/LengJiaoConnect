@@ -54,13 +54,14 @@ public class HelperService extends NotificationListenerService {
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private volatile PrintWriter writer;
+    private volatile LocalSocket activeSocket;
     private volatile boolean running;
     private Thread serverThread;
     private Thread clipboardThread;
     private LocalServerSocket serverSocket;
 
+    private final Object clipLock = new Object();
     private String lastClip = "";
-    private boolean ignoreNextClip;
     private final Object sendLock = new Object();
 
     // 通知节流：同一个包 2 秒内只推一条，避免通知风暴把 PC 端刷屏
@@ -79,9 +80,20 @@ public class HelperService extends NotificationListenerService {
     public void onDestroy() {
         running = false;
         try { if (serverSocket != null) serverSocket.close(); } catch (Exception ignored) { }
-        writer = null;
+        closeActiveClient();
+        if (clipboardThread != null) clipboardThread.interrupt();
         super.onDestroy();
         Log.i(TAG, "service destroyed");
+    }
+
+    private void closeActiveClient() {
+        LocalSocket sock;
+        synchronized (sendLock) {
+            writer = null;
+            sock = activeSocket;
+            activeSocket = null;
+        }
+        try { if (sock != null) sock.close(); } catch (Exception ignored) { }
     }
 
     // ---------------------------------------------------------------- 通道
@@ -117,9 +129,17 @@ public class HelperService extends NotificationListenerService {
                     new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
             OutputStream os = socket.getOutputStream();
             out = new PrintWriter(new OutputStreamWriter(os, StandardCharsets.UTF_8), false);
+
+            LocalSocket prev;
             synchronized (sendLock) {
+                prev = activeSocket;
+                activeSocket = socket;
                 writer = out;
             }
+            if (prev != null && prev != socket) {
+                try { prev.close(); } catch (Exception ignored) { }
+            }
+
             String line;
             while (running && (line = in.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
@@ -134,18 +154,26 @@ public class HelperService extends NotificationListenerService {
         } finally {
             synchronized (sendLock) {
                 if (writer == out) writer = null;
+                if (activeSocket == socket) activeSocket = null;
             }
             try { socket.close(); } catch (Exception ignored) { }
         }
     }
 
     private void send(JSONObject obj) {
-        PrintWriter w = writer;
-        if (w == null) return;
         synchronized (sendLock) {
+            PrintWriter w = writer;
+            if (w == null) return;
             try {
                 w.println(obj.toString());
                 w.flush();
+                if (w.checkError()) {
+                    Log.w(TAG, "writer error, closing client");
+                    writer = null;
+                    LocalSocket s = activeSocket;
+                    activeSocket = null;
+                    try { if (s != null) s.close(); } catch (Exception ignored) { }
+                }
             } catch (Exception e) {
                 Log.w(TAG, "send failed", e);
             }
@@ -201,8 +229,10 @@ public class HelperService extends NotificationListenerService {
                 try {
                     ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                     if (cm == null) return;
-                    ignoreNextClip = true;
-                    lastClip = text;
+                    // 先记录 lastClip 再写入系统剪贴板，既防回环又不会误吞用户下一次真实复制
+                    synchronized (clipLock) {
+                        lastClip = text;
+                    }
                     cm.setPrimaryClip(ClipData.newPlainText("lengjiao", text));
                 } catch (Exception e) {
                     Log.w(TAG, "setClipboard failed", e);
@@ -246,7 +276,13 @@ public class HelperService extends NotificationListenerService {
         clipboardThread = new Thread(new Runnable() {
             @Override
             public void run() {
-                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                ClipboardManager cm = null;
+                try {
+                    cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                } catch (Exception e) {
+                    Log.w(TAG, "get ClipboardManager failed", e);
+                    return;
+                }
                 while (running) {
                     try {
                         Thread.sleep(800);
@@ -256,11 +292,10 @@ public class HelperService extends NotificationListenerService {
                         CharSequence cs = clip.getItemAt(0).coerceToText(HelperService.this);
                         if (cs == null) continue;
                         String text = cs.toString();
-                        if (text.length() == 0 || text.equals(lastClip)) continue;
-                        lastClip = text;
-                        if (ignoreNextClip) {
-                            ignoreNextClip = false;
-                            continue;
+                        if (text.length() == 0) continue;
+                        synchronized (clipLock) {
+                            if (text.equals(lastClip)) continue;
+                            lastClip = text;
                         }
                         send(new JSONObject().put("t", "clip").put("text", text));
                     } catch (InterruptedException ie) {
@@ -382,9 +417,9 @@ public class HelperService extends NotificationListenerService {
             List<ApplicationInfo> all = pm.getInstalledApplications(0);
             int count = 0;
             for (ApplicationInfo ai : all) {
-                boolean system = (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0;
                 Intent launch = pm.getLaunchIntentForPackage(ai.packageName);
-                if (system && launch == null) continue;
+                // 只下发有桌面启动入口的应用，过滤掉无界面的插件/输入法皮肤/助手自身
+                if (launch == null) continue;
 
                 String name = pm.getApplicationLabel(ai).toString();
                 String icon = iconBase64(pm, ai);
@@ -403,24 +438,34 @@ public class HelperService extends NotificationListenerService {
     }
 
     private String iconBase64(PackageManager pm, ApplicationInfo ai) {
+        Bitmap tempCanvasBitmap = null;
+        Bitmap source = null;
+        Bitmap scaled = null;
         try {
             Drawable drawable = pm.getApplicationIcon(ai);
-            Bitmap bitmap;
-            if (drawable instanceof BitmapDrawable) {
-                bitmap = ((BitmapDrawable) drawable).getBitmap();
+            if (drawable instanceof BitmapDrawable && ((BitmapDrawable) drawable).getBitmap() != null) {
+                source = ((BitmapDrawable) drawable).getBitmap();
             } else {
                 int size = 96;
-                bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-                Canvas canvas = new Canvas(bitmap);
+                tempCanvasBitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(tempCanvasBitmap);
                 drawable.setBounds(0, 0, size, size);
                 drawable.draw(canvas);
+                source = tempCanvasBitmap;
             }
-            Bitmap scaled = Bitmap.createScaledBitmap(bitmap, 48, 48, true);
+            scaled = Bitmap.createScaledBitmap(source, 48, 48, true);
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             scaled.compress(Bitmap.CompressFormat.PNG, 90, bos);
             return Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
         } catch (Exception e) {
             return "";
+        } finally {
+            if (scaled != null && scaled != source) {
+                try { scaled.recycle(); } catch (Exception ignored) { }
+            }
+            if (tempCanvasBitmap != null) {
+                try { tempCanvasBitmap.recycle(); } catch (Exception ignored) { }
+            }
         }
     }
 

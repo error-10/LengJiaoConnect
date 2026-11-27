@@ -9,11 +9,15 @@ namespace LengJiaoConnect.Services;
 
 /// <summary>
 /// 与手机端 HelperService 的常驻通道。
-/// 协议：一行一个 JSON（\n 分帧，UTF-8），彻底告别"一次 read 当一条命令"的老毛病。
+/// 协议：一行一个 JSON（\n 分帧，UTF-8）。
+/// 连接时强制 ping/pong 应用层握手，防止 adb forward 本地端口假连接引发无限重连风暴。
 /// </summary>
 public sealed class HelperClient : IDisposable
 {
     private const int Port = 8889;
+
+    // 串行化所有实例对 tcp:8889 的 adb forward 增删，防止旧实例 Dispose 拆掉新实例刚建好的转发。
+    private static readonly SemaphoreSlim ForwardGate = new(1, 1);
 
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private readonly SemaphoreSlim _connectGate = new(1, 1);
@@ -24,12 +28,11 @@ public sealed class HelperClient : IDisposable
     private Task? _readTask;
     private Task? _pingTask;
     private int _disconnectedRaised;
+    private volatile bool _disposed;
 
     public string Serial { get; }
-    public bool IsConnected => _tcp?.Connected == true && _disposed == false;
+    public bool IsConnected => _tcp?.Connected == true && !_disposed;
     public DateTime LastSeen { get; private set; } = DateTime.MinValue;
-
-    private bool _disposed;
 
     public event Action<string>? ClipboardReceived;
     public event Action<string, string, string>? NotificationReceived;
@@ -44,9 +47,11 @@ public sealed class HelperClient : IDisposable
 
     public async Task<bool> ConnectAsync(CancellationToken ct = default)
     {
+        if (_disposed) return false;
         await _connectGate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            if (_disposed) return false;
             return await ConnectCoreAsync(ct).ConfigureAwait(false);
         }
         finally
@@ -59,38 +64,74 @@ public sealed class HelperClient : IDisposable
     {
         if (IsConnected) return true;
 
-        await Adb.RunAsync(new[] { "-s", Serial, "forward", "--remove", $"tcp:{Port}" }, 5000, ct)
-            .ConfigureAwait(false);
-        var forward = await Adb.RunAsync(
-            new[] { "-s", Serial, "forward", $"tcp:{Port}", "localabstract:lengjiao_helper" }, 8000, ct)
-            .ConfigureAwait(false);
-        if (!forward.Ok)
+        bool forwarded;
+        await ForwardGate.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            Log.Warn("Helper", "adb forward 失败: " + forward.Best);
-            return false;
+            await Adb.RunAsync(new[] { "-s", Serial, "forward", "--remove", $"tcp:{Port}" }, 5000, ct)
+                .ConfigureAwait(false);
+            var forward = await Adb.RunAsync(
+                new[] { "-s", Serial, "forward", $"tcp:{Port}", "localabstract:lengjiao_helper" }, 8000, ct)
+                .ConfigureAwait(false);
+            forwarded = forward.Ok;
+            if (!forwarded)
+                Log.Warn("Helper", "adb forward 失败: " + forward.Best);
+        }
+        finally
+        {
+            ForwardGate.Release();
         }
 
-        for (var attempt = 0; attempt < 8; attempt++)
+        if (!forwarded) return false;
+
+        for (var attempt = 0; attempt < 3; attempt++)
         {
+            if (_disposed) return false;
             ct.ThrowIfCancellationRequested();
+
+            TcpClient? tcp = null;
+            StreamReader? reader = null;
+            StreamWriter? writer = null;
             try
             {
-                var tcp = new TcpClient { NoDelay = true };
+                tcp = new TcpClient { NoDelay = true };
                 using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 connectCts.CancelAfter(1500);
                 await tcp.ConnectAsync(IPAddress.Loopback, Port, connectCts.Token).ConfigureAwait(false);
 
                 var stream = tcp.GetStream();
-                _reader = new StreamReader(stream, new UTF8Encoding(false), false, 64 * 1024, leaveOpen: true);
-                _writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024, leaveOpen: true)
+                reader = new StreamReader(stream, new UTF8Encoding(false), false, 64 * 1024, leaveOpen: true);
+                writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024, leaveOpen: true)
                 {
                     AutoFlush = true,
                     NewLine = "\n"
                 };
+
+                // adb forward 会先由本机 adb server 接下 TCP；必须做一次应用层 ping/pong 握手，
+                // 确认手机侧 HelperService 真正在监听 localabstract:lengjiao_helper。
+                using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                handshakeCts.CancelAfter(1500);
+                await writer.WriteLineAsync("{\"t\":\"ping\"}".AsMemory(), handshakeCts.Token).ConfigureAwait(false);
+                var firstLine = await reader.ReadLineAsync(handshakeCts.Token).ConfigureAwait(false);
+                if (firstLine == null)
+                    throw new IOException("手机端助手未响应（服务未启动或未授予通知使用权）");
+
+                if (_disposed)
+                {
+                    reader.Dispose();
+                    writer.Dispose();
+                    tcp.Dispose();
+                    return false;
+                }
+
+                _reader = reader;
+                _writer = writer;
                 _tcp = tcp;
                 _cts = new CancellationTokenSource();
                 Interlocked.Exchange(ref _disconnectedRaised, 0);
                 LastSeen = DateTime.Now;
+                if (firstLine.Length > 0) Dispatch(firstLine);
+
                 _readTask = Task.Run(() => ReadLoopAsync(_cts.Token));
                 _pingTask = Task.Run(() => PingLoopAsync(_cts.Token));
                 Log.Info("Helper", $"已连接 {Serial}:{Port}");
@@ -98,8 +139,11 @@ public sealed class HelperClient : IDisposable
             }
             catch (Exception ex)
             {
-                Log.Warn("Helper", $"连接尝试 {attempt + 1}/8 失败: {ex.Message}");
-                await Task.Delay(400, ct).ConfigureAwait(false);
+                try { reader?.Dispose(); } catch { }
+                try { writer?.Dispose(); } catch { }
+                try { tcp?.Dispose(); } catch { }
+                Log.Warn("Helper", $"连接尝试 {attempt + 1}/3 失败: {ex.Message}");
+                if (attempt < 2) await Task.Delay(350, ct).ConfigureAwait(false);
             }
         }
         return false;
@@ -136,7 +180,13 @@ public sealed class HelperClient : IDisposable
             while (!ct.IsCancellationRequested)
             {
                 await Task.Delay(20000, ct).ConfigureAwait(false);
-                await SendAsync(new { t = "ping" }).ConfigureAwait(false);
+                if ((DateTime.Now - LastSeen).TotalSeconds > 50)
+                {
+                    Log.Warn("Helper.Ping", "心跳超时（超过 50 秒无响应）");
+                    RaiseDisconnected();
+                    return;
+                }
+                await SendAsync(new { t = "ping" }, ct).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { }
@@ -205,16 +255,25 @@ public sealed class HelperClient : IDisposable
 
     public async Task SendAsync(object payload, CancellationToken ct = default)
     {
-        if (!IsConnected || _writer == null) return;
+        if (_disposed || !IsConnected) return;
         var json = JsonSerializer.Serialize(payload);
-        await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+        var entered = false;
         try
         {
+            await _sendLock.WaitAsync(ct).ConfigureAwait(false);
+            entered = true;
+            if (_disposed || !IsConnected || _writer == null) return;
             await _writer.WriteLineAsync(json.AsMemory(), ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Log.Warn("Helper.Send", ex.Message);
+            RaiseDisconnected();
         }
         finally
         {
-            _sendLock.Release();
+            if (entered) _sendLock.Release();
         }
     }
 
@@ -234,6 +293,7 @@ public sealed class HelperClient : IDisposable
 
     private void RaiseDisconnected()
     {
+        if (_disposed) return;
         if (Interlocked.Exchange(ref _disconnectedRaised, 1) == 1) return;
         DisposeTransport();
         Log.Warn("Helper", "连接已断开: " + Serial);
@@ -243,14 +303,38 @@ public sealed class HelperClient : IDisposable
     private void DisposeTransport()
     {
         try { _cts?.Cancel(); } catch { }
-        try { _reader?.Dispose(); } catch { }
-        try { _writer?.Dispose(); } catch { }
-        try { _tcp?.Dispose(); } catch { }
-        _reader = null;
-        _writer = null;
-        _tcp = null;
-        _cts?.Dispose();
+        var locked = false;
+        try
+        {
+            locked = _sendLock.Wait(300);
+            try { _reader?.Dispose(); } catch { }
+            try { _writer?.Dispose(); } catch { }
+            try { _tcp?.Dispose(); } catch { }
+            _reader = null;
+            _writer = null;
+            _tcp = null;
+        }
+        finally
+        {
+            if (locked) _sendLock.Release();
+        }
+        try { _cts?.Dispose(); } catch { }
         _cts = null;
+    }
+
+    public static async Task RemoveForwardAsync(string serial)
+    {
+        if (string.IsNullOrWhiteSpace(serial)) return;
+        await ForwardGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await Adb.RunAsync(new[] { "-s", serial, "forward", "--remove", $"tcp:{Port}" }, 2500)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            ForwardGate.Release();
+        }
     }
 
     public void Dispose()
@@ -258,7 +342,7 @@ public sealed class HelperClient : IDisposable
         if (_disposed) return;
         _disposed = true;
         DisposeTransport();
-        _ = Adb.RunAsync(new[] { "-s", Serial, "forward", "--remove", $"tcp:{Port}" }, 4000);
-        _sendLock.Dispose();
+        // 清理转发走 ForwardGate 串行队列，避免与新连接竞态。
+        _ = RemoveForwardAsync(Serial);
     }
 }

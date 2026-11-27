@@ -20,7 +20,7 @@
             <GradientStop Offset="0" Color="#E80F1A27" />
             <GradientStop Offset="1" Color="#D6091119" />
         </LinearGradientBrush>
-        <SolidColorBrush x:Key="CardBorder" Color="#33FFFFFF" />
+        <SolidColorBrush x:Key="CardBorder" Color="#26FFFFFF" />
         <SolidColorBrush x:Key="Ink" Color="#EAF2FA" />
         <SolidColorBrush x:Key="InkDim" Color="#93A6BC" />
         <SolidColorBrush x:Key="InkMute" Color="#64758A" />
@@ -45,7 +45,8 @@
             <Setter Property="Foreground" Value="{StaticResource InkMute}" />
         </Style>
         <Style Selector="TextBlock.h1">
-            <Setter Property="FontSize" Value="30" /><Setter Property="LineHeight" Value="38" />
+            <Setter Property="FontSize" Value="30" />
+            <Setter Property="LineHeight" Value="38" />
             <Setter Property="FontWeight" Value="DemiBold" />
             <Setter Property="LetterSpacing" Value="-0.4" />
         </Style>
@@ -55,12 +56,14 @@
             <Setter Property="LetterSpacing" Value="-0.1" />
         </Style>
         <Style Selector="TextBlock.caption">
-            <Setter Property="FontSize" Value="12" /><Setter Property="LineHeight" Value="17" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="LineHeight" Value="17" />
             <Setter Property="Foreground" Value="{StaticResource InkDim}" />
         </Style>
         <Style Selector="TextBlock.mono">
             <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
-            <Setter Property="FontSize" Value="12" /><Setter Property="LineHeight" Value="17" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="LineHeight" Value="17" />
             <Setter Property="Foreground" Value="{StaticResource InkDim}" />
         </Style>
 
@@ -79,7 +82,7 @@
             </Setter>
             <Setter Property="Foreground" Value="{StaticResource InkDim}" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Transitions">
                 <Transitions>
                     <BrushTransition Property="Background" Duration="0:0:0.16" />
@@ -129,6 +132,8 @@
             <Setter Property="Fill" Value="{StaticResource Brand}" />
             <Setter Property="Stroke" Value="{StaticResource Brand}" />
         </Style>
+
+        <!-- 标题栏窗口按钮 -->
         <Style Selector="Button.winBtn">
             <Setter Property="Width" Value="44" />
             <Setter Property="Height" Value="30" />
@@ -154,7 +159,7 @@
         <Style Selector="RadioButton.chip">
             <Setter Property="Template">
                 <ControlTemplate>
-                    <Border Name="bg" CornerRadius="10" Padding="17,8" Background="#FF0A0F17">
+                    <Border Name="bg" CornerRadius="10" Padding="17,8" Background="Transparent">
                         <ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center" />
                     </Border>
                 </ControlTemplate>
@@ -170,22 +175,25 @@
         </Style>
         <Style Selector="RadioButton.chip:checked">
             <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="FontWeight" Value="DemiBold" />
         </Style>
 
-        <!-- 按钮 -->
+        <!-- 输入与按钮 -->
         <Style Selector="TextBox">
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="MinHeight" Value="42" />
             <Setter Property="Padding" Value="14,10" />
-        </Style>        <Style Selector="Button">
+        </Style>
+        <Style Selector="Button">
             <Setter Property="Transitions">
                 <Transitions>
                     <BrushTransition Property="Background" Duration="0:0:0.16" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
                     <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
                 </Transitions>
             </Setter>
         </Style>
         <Style Selector="Button.primary">
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="MinHeight" Value="42" />
             <Setter Property="Background" Value="{StaticResource Brand}" />
             <Setter Property="Foreground" Value="#0A2130" />
             <Setter Property="CornerRadius" Value="10" />
@@ -193,50 +201,108 @@
             <Setter Property="FontWeight" Value="DemiBold" />
         </Style>
         <Style Selector="Button.primary:pointerover">
-            <Setter Property="Background" Value="#4FF2E4" />
+            <Setter Property="Background" Value="#8AE0FF" />
         </Style>
         <Style Selector="Button.ghost">
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="MinHeight" Value="42" />
             <Setter Property="Background" Value="#0BFFFFFF" />
             <Setter Property="Foreground" Value="{StaticResource Ink}" />
-            <Setter Property="BorderBrush" Value="#1C2A27" />
+            <Setter Property="BorderBrush" Value="#22FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="14,8" />
         </Style>
         <Style Selector="Button.ghost:pointerover">
             <Setter Property="Background" Value="#16FFFFFF" />
+            <Setter Property="BorderBrush" Value="#386FD3FF" />
         </Style>
         <Style Selector="Button.danger">
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="MinHeight" Value="42" />
             <Setter Property="Background" Value="#24FF6B6B" />
             <Setter Property="Foreground" Value="#FFB4AB" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="14,8" />
         </Style>
         <Style Selector="Button.danger:pointerover">
-            <Setter Property="Background" Value="#38FF6B6B" />
+            <Setter Property="Background" Value="#3AFF6B6B" />
         </Style>
         <Style Selector="Button.roundIcon">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="#26322F" />
+            <Setter Property="Background" Value="#08FFFFFF" />
+            <Setter Property="BorderBrush" Value="#24FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="999" />
-            <Setter Property="Width" Value="42" />
-            <Setter Property="Height" Value="42" />
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
         <Style Selector="Button.roundIcon:pointerover">
-            <Setter Property="Background" Value="#16FFFFFF" />
+            <Setter Property="Background" Value="#1A6FD3FF" />
+            <Setter Property="BorderBrush" Value="#446FD3FF" />
         </Style>
 
-        <!-- 顶栏设备胶囊：可点，点开设备浮层 -->
+        <!-- 面包屑与快捷小胶囊 -->
+        <Style Selector="Button.crumb">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource InkDim}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="Button.crumb:pointerover">
+            <Setter Property="Background" Value="#146FD3FF" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        </Style>
+        <Style Selector="Button.quickChip">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="#0DFFFFFF" />
+            <Setter Property="BorderBrush" Value="#1CFFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource InkDim}" />
+            <Setter Property="FontSize" Value="11.5" />
+        </Style>
+        <Style Selector="Button.quickChip:pointerover">
+            <Setter Property="Background" Value="#1A6FD3FF" />
+            <Setter Property="BorderBrush" Value="#3D6FD3FF" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        </Style>
+
+        <!-- 应用磁贴 -->
+        <Style Selector="Button.appTile">
+            <Setter Property="Background" Value="#06FFFFFF" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Width" Value="122" />
+            <Setter Property="Height" Value="132" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.16" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.appTile:pointerover">
+            <Setter Property="Background" Value="#166FD3FF" />
+            <Setter Property="BorderBrush" Value="#336FD3FF" />
+            <Setter Property="RenderTransform" Value="translateY(-3px)" />
+        </Style>
+
+        <!-- 顶栏设备胶囊 -->
         <Style Selector="Border.pill">
             <Setter Property="CornerRadius" Value="999" />
             <Setter Property="Background" Value="#0DFFFFFF" />
-            <Setter Property="BorderBrush" Value="#1A2836" />
+            <Setter Property="BorderBrush" Value="#1E3042" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="13,7" />
             <Setter Property="Transitions">
@@ -248,10 +314,10 @@
         </Style>
         <Style Selector="Border.pill:pointerover">
             <Setter Property="Background" Value="#176FD3FF" />
-            <Setter Property="BorderBrush" Value="#336FD3FF" />
+            <Setter Property="BorderBrush" Value="#3D6FD3FF" />
         </Style>
 
-        <!-- 设备浮层里的一行 -->
+        <!-- 设备浮层行 -->
         <Style Selector="Button.deviceRow">
             <Setter Property="Background" Value="#08FFFFFF" />
             <Setter Property="BorderBrush" Value="Transparent" />
@@ -263,7 +329,7 @@
         </Style>
         <Style Selector="Button.deviceRow:pointerover">
             <Setter Property="Background" Value="#146FD3FF" />
-            <Setter Property="BorderBrush" Value="#266FD3FF" />
+            <Setter Property="BorderBrush" Value="#2D6FD3FF" />
         </Style>
 
         <!-- 卡片 -->
@@ -277,30 +343,35 @@
         </Style>
         <Style Selector="Border.subtle">
             <Setter Property="Background" Value="#0AFFFFFF" />
+            <Setter Property="BorderBrush" Value="#14FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Padding" Value="14,12" />
         </Style>
         <Style Selector="Border.tile">
             <Setter Property="Background" Value="#0AFFFFFF" />
-            <Setter Property="BorderBrush" Value="#17222F" />
+            <Setter Property="BorderBrush" Value="#1A2836" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="16" />
             <Setter Property="Padding" Value="16" />
             <Setter Property="Transitions">
                 <Transitions>
                     <BrushTransition Property="Background" Duration="0:0:0.16" />
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.16" />
                     <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" />
                 </Transitions>
             </Setter>
         </Style>
         <Style Selector="Border.tile:pointerover">
-            <Setter Property="Background" Value="#12FFFFFF" />
+            <Setter Property="Background" Value="#14FFFFFF" />
+            <Setter Property="BorderBrush" Value="#306FD3FF" />
             <Setter Property="RenderTransform" Value="translateY(-2px)" />
         </Style>
 
         <Style Selector="ProgressBar.metric">
-            <Setter Property="Height" Value="3" />
-            <Setter Property="Background" Value="#12FFFFFF" />
+            <Setter Property="Height" Value="5" />
+            <Setter Property="CornerRadius" Value="999" />
+            <Setter Property="Background" Value="#14FFFFFF" />
             <Setter Property="Foreground" Value="{StaticResource Brand}" />
         </Style>
         <Style Selector="Button.hitArea">
@@ -311,14 +382,11 @@
             <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="FocusAdorner" Value="{x:Null}" />
-        </Style>        <Style Selector="Path.icon">
+        </Style>
+        <Style Selector="Path.icon">
             <Setter Property="Stretch" Value="Uniform" />
         </Style>
-        <Style Selector="ListBoxItem">
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Margin" Value="0,1" />
-            <Setter Property="CornerRadius" Value="10" />
-        </Style>
+
         <!-- 列表与滚动条 -->
         <Style Selector="ListBoxItem">
             <Setter Property="CornerRadius" Value="10" />
@@ -329,7 +397,7 @@
             <Setter Property="Background" Value="#0FFFFFFF" />
         </Style>
         <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-            <Setter Property="Background" Value="#266FD3FF" />
+            <Setter Property="Background" Value="#246FD3FF" />
         </Style>
         <Style Selector="ScrollBar">
             <Setter Property="Background" Value="Transparent" />
@@ -339,10 +407,11 @@
             <Setter Property="Background" Value="#33707F92" />
             <Setter Property="CornerRadius" Value="5" />
             <Setter Property="MinHeight" Value="28" />
-        </Style>    </suki:SukiWindow.Styles>
+        </Style>
+    </suki:SukiWindow.Styles>
 
     <Grid RowDefinitions="52,*" ColumnDefinitions="248,*">
-        <!-- 底色：深空蓝黑，右下角微微泛蓝 -->
+        <!-- 底色：深空蓝黑 -->
         <Border Grid.RowSpan="2" Grid.ColumnSpan="2" IsHitTestVisible="False">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
@@ -352,7 +421,7 @@
                 </LinearGradientBrush>
             </Border.Background>
         </Border>
-        <!-- 环境光：右上冷光 + 左下淡紫，制造空气感 -->
+        <!-- 环境光：右上冷光 + 左下淡紫 -->
         <Border Grid.RowSpan="2" Grid.ColumnSpan="2" IsHitTestVisible="False">
             <Border.Background>
                 <RadialGradientBrush Center="88%,-6%" GradientOrigin="88%,-6%" RadiusX="62%" RadiusY="58%">
@@ -371,7 +440,7 @@
             </Border.Background>
         </Border>
 
-        <!-- 毛玻璃底层：两团柔光，透过上层半透明面板形成雾面质感 -->
+        <!-- 毛玻璃柔光底层 -->
         <Border Grid.RowSpan="2" Grid.ColumnSpan="2" IsHitTestVisible="False">
             <Canvas>
                 <Ellipse Canvas.Left="-140" Canvas.Top="470" Width="560" Height="560" Opacity="0.55">
@@ -413,9 +482,9 @@
             </StackPanel>
         </Grid>
 
-        <!-- 侧栏：浮起来的一块，不顶满边 -->
+        <!-- 侧栏 -->
         <Border Grid.Row="1" Grid.Column="0" Margin="12,0,0,12" CornerRadius="20" Background="{StaticResource RailBg}"
-                BorderBrush="#132030" BorderThickness="1" Padding="12,16">
+                BorderBrush="#1A2C3E" BorderThickness="1" Padding="12,16">
             <Grid RowDefinitions="Auto,*,Auto">
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="11" Margin="6,4,6,22">
                     <Border Width="40" Height="40" CornerRadius="12" ClipToBounds="True">
@@ -462,30 +531,42 @@
                     <Border Height="1" Background="#12FFFFFF" Margin="12,12,12,12" />
                     <TextBlock Text="系统" Classes="overline" Margin="15,0,0,9" />
                     <RadioButton x:Name="NavSettings" Classes="nav" GroupName="nav" IsCheckedChanged="Nav_Checked" Tag="settings">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <Border Classes="navTile"><Path Classes="icon" Width="16" Height="16" Data="M4,7 H20 M4,12 H20 M4,17 H20" Stroke="{StaticResource InkMute}" StrokeThickness="1.8" Fill="Transparent" /></Border>
-                            <TextBlock Text="设置" VerticalAlignment="Center" />
-                        </StackPanel>
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Grid.Column="0" Classes="navTile"><Path Classes="icon" Width="16" Height="16" Data="M4,7 H20 M4,12 H20 M4,17 H20" Stroke="{StaticResource InkMute}" StrokeThickness="1.8" Fill="Transparent" /></Border>
+                            <TextBlock Grid.Column="1" Text="设置" Margin="12,0,0,0" VerticalAlignment="Center" />
+                            <Border x:Name="BadgeNavUpdate" Grid.Column="2" Width="8" Height="8" CornerRadius="99" Background="#FF8A65"
+                                    Margin="0,0,8,0" VerticalAlignment="Center" IsVisible="False" ToolTip.Tip="发现新版本" />
+                        </Grid>
                     </RadioButton>
                 </StackPanel>
-                <Border Grid.Row="2" CornerRadius="14" Background="#0AFFFFFF" Padding="12,10" Margin="2,0,2,2">
-                    <StackPanel Spacing="3">
-                        <StackPanel Orientation="Horizontal" Spacing="7">
-                            <Ellipse x:Name="SideDot" Width="6" Height="6" Fill="#33465B" VerticalAlignment="Center" />
+
+                <!-- 侧栏底部设备卡与署名 -->
+                <Border Grid.Row="2" CornerRadius="14" Background="#0AFFFFFF" BorderBrush="#14FFFFFF" BorderThickness="1" Padding="12,10" Margin="2,0,2,2">
+                    <StackPanel Spacing="4">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Grid Width="12" Height="12" VerticalAlignment="Center">
+                                <Ellipse x:Name="SideDotGlow" Width="12" Height="12" Fill="#386FD3FF" IsVisible="False" />
+                                <Ellipse x:Name="SideDot" Width="6" Height="6" Fill="#64758A" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Grid>
                             <TextBlock x:Name="TxtSideDevice" Text="未连接设备" FontSize="12" FontWeight="DemiBold" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                         <TextBlock x:Name="TxtSideHint" Classes="caption" Text="USB 或无线调试" TextTrimming="CharacterEllipsis" />
-                        <Button Background="#00000000" BorderThickness="0" Padding="0" HorizontalAlignment="Left"
-                                Click="BtnOpenAuthor_Click" ToolTip.Tip="作者主页 · miqwq.com" Cursor="Hand" Margin="0,3,0,0">
-                            <StackPanel Orientation="Horizontal" Spacing="7">
-                                <Border Width="17" Height="17" CornerRadius="6" Background="{StaticResource BrandGrad}">
-                                    <Path Data="M2,8 C4.5,4.6 9.6,4.6 12.2,8 C9.6,11.4 4.5,11.4 2,8 Z M12.2,8 L15.4,5.4 L15.4,10.6 Z"
-                                          Fill="White" Stretch="Uniform" Margin="3" />
-                                </Border>
-                                <TextBlock Text="by 一条橙鱼" FontSize="11.5" FontWeight="DemiBold"
-                                           Foreground="{StaticResource BrandGrad}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                            <Button Grid.Column="0" Background="Transparent" BorderThickness="0" Padding="0" HorizontalAlignment="Left"
+                                    Click="BtnOpenAuthor_Click" ToolTip.Tip="作者主页 · miqwq.com" Cursor="Hand">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <Border Width="17" Height="17" CornerRadius="6" Background="{StaticResource BrandGrad}">
+                                        <Path Data="M2,8 C4.5,4.6 9.6,4.6 12.2,8 C9.6,11.4 4.5,11.4 2,8 Z M12.2,8 L15.4,5.4 L15.4,10.6 Z"
+                                              Fill="White" Stretch="Uniform" Margin="3" />
+                                    </Border>
+                                    <TextBlock Text="by 一条橙鱼" FontSize="11.5" FontWeight="DemiBold"
+                                               Foreground="{StaticResource BrandGrad}" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                            <Border Grid.Column="1" Background="#12FFFFFF" CornerRadius="6" Padding="6,2" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtSideVersion" Text="v3.2.6" FontSize="10" Foreground="{StaticResource InkMute}" />
+                            </Border>
+                        </Grid>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -499,13 +580,13 @@
                     <TextBlock x:Name="TxtPageSub" Classes="caption" Text="设备、投屏与高级互联" Margin="0,4,0,0" Padding="0" />
                 </StackPanel>
                 <Border x:Name="BtnDevicePill" Grid.Column="1" Classes="pill" Cursor="Hand" VerticalAlignment="Center"
-                        PointerPressed="BtnDevicePill_Click" ToolTip.Tip="连接或切换设备">
+                        PointerPressed="BtnDevicePill_Click" ToolTip.Tip="连接、配对或切换设备">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Ellipse x:Name="DotTop" Width="7" Height="7" Fill="#64758A" VerticalAlignment="Center" />
-                        <TextBlock x:Name="TxtTopDevice" Text="未连接" FontSize="12.5" VerticalAlignment="Center" />
-                        <Grid Width="26" Height="13" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtTopDevice" Text="未连接" FontSize="12.5" FontWeight="Medium" VerticalAlignment="Center" />
+                        <Grid Width="26" Height="13" VerticalAlignment="Center" Margin="0,0,4,0">
                             <Border BorderBrush="#7E93A6" BorderThickness="1.2" CornerRadius="3" />
-                            <Border x:Name="TopBatteryBar" Width="13" Height="7" CornerRadius="1.2" Background="#6FD3FF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2.5,0,0,0" />
+                            <Border x:Name="TopBatteryBar" Width="0" Height="7" CornerRadius="1.2" Background="#6FD3FF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="2.5,0,0,0" />
                             <Border Width="2.6" Height="5" CornerRadius="0,1.2,1.2,0" Background="#7E93A6" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-4,0" />
                         </Grid>
                         <TextBlock x:Name="TxtTopMeta" Classes="caption" Text="" VerticalAlignment="Center" />
@@ -519,6 +600,7 @@
                             <Path x:Name="TopBt" Stretch="Uniform" Fill="#93A6BC" Data="M17.71,7.71 L12,2 h-1 v7.59 L6.41,5 L5,6.41 L10.59,12 L5,17.59 L6.41,19 L11,14.41 V22 h1 l5.71,-5.71 -4.3,-4.29 4.3,-4.29 Z M13,5.83 l1.88,1.88 L13,9.59 V5.83 Z M14.88,16.29 L13,18.17 v-3.76 l1.88,1.88 Z" />
                             <Path x:Name="TopBtSlash" Data="M4,19 L19,5" Stroke="#FF6B6B" StrokeThickness="2" StrokeLineCap="Round" IsVisible="False" />
                         </Grid>
+                        <Path Width="9" Height="6" Stretch="Uniform" Stroke="#64758A" StrokeThickness="1.8" Data="M1,1 L5,5 L9,1" VerticalAlignment="Center" Margin="2,0,0,0" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -526,37 +608,46 @@
             <Grid Grid.Row="1">
                 <!-- ═══════════ 概览 ═══════════ -->
                 <ScrollViewer x:Name="PageHome" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Spacing="11">
+                    <StackPanel Spacing="10">
                         <!-- 设备主卡 -->
-                        <Border CornerRadius="22" BorderThickness="1" BorderBrush="#1D2C29" Padding="22,16">
+                        <Border CornerRadius="22" BorderThickness="1" BorderBrush="#24384A" Padding="20,15" BoxShadow="0 16 36 0 #55000000">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,130%">
-                                    <GradientStop Offset="0" Color="#101C28" />
-                                    <GradientStop Offset="0.6" Color="#0C1520" />
-                                    <GradientStop Offset="1" Color="#0A1219" />
+                                    <GradientStop Offset="0" Color="#E6112030" />
+                                    <GradientStop Offset="0.6" Color="#DE0C1622" />
+                                    <GradientStop Offset="1" Color="#D809121B" />
                                 </LinearGradientBrush>
                             </Border.Background>
                             <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
-                                    <TextBlock Classes="overline" Text="CURRENT DEVICE" />
-                                    <TextBlock x:Name="TxtDevName" Text="未连接设备" FontSize="32" FontWeight="DemiBold" LetterSpacing="-0.6" />
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="5">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBlock Classes="overline" Text="CURRENT DEVICE" VerticalAlignment="Center" />
+                                        <Border x:Name="BadgeDevAndroid" CornerRadius="999" Background="#16A8C7FF" Padding="8,2" IsVisible="False">
+                                            <TextBlock x:Name="TxtDevAndroid" Text="" FontSize="10.5" Foreground="#C4DBFF" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock x:Name="TxtDevName" Text="未连接设备" FontSize="31" FontWeight="DemiBold" LetterSpacing="-0.6" />
                                     <TextBlock x:Name="TxtDevSerial" Classes="mono" Text="插入 USB 或连接无线调试" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Top">
-                                    <Border CornerRadius="999" Background="#126FD3FF" Padding="10,5"><TextBlock x:Name="TxtDevState" Text="离线" FontSize="11.5" Foreground="#A9E8FF" /></Border>
-                                    <Border CornerRadius="999" Background="#0BFFFFFF" Padding="12,6">
-                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                            <Grid Width="26" Height="14" VerticalAlignment="Center">
+                                    <Border CornerRadius="999" Background="#166FD3FF" BorderBrush="#286FD3FF" BorderThickness="1" Padding="11,5">
+                                        <TextBlock x:Name="TxtDevState" Text="离线" FontSize="11.5" Foreground="#A9E8FF" />
+                                    </Border>
+                                    <Border CornerRadius="999" Background="#0CFFFFFF" Padding="12,6">
+                                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                            <Grid Width="26" Height="14" VerticalAlignment="Center" Margin="0,0,5,0">
                                                 <Border BorderBrush="#7E93A6" BorderThickness="1.4" CornerRadius="3.5" />
-                                                <Border x:Name="BarBattery" Width="18" Height="8" CornerRadius="1.5" Background="#6FD3FF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0" />
+                                                <Border x:Name="BarBattery" Width="0" Height="8" CornerRadius="1.5" Background="#6FD3FF" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0,0,0" />
                                                 <Border Width="3" Height="6" CornerRadius="0,1.5,1.5,0" Background="#7E93A6" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-4.5,0" />
                                             </Grid>
+                                            <Path x:Name="IconBatteryBolt" Width="9" Height="12" Stretch="Uniform" Fill="#56D364" IsVisible="False"
+                                                  Data="M11,1 L3,12 H9.5 L8,21 L17,10 H10.5 Z" VerticalAlignment="Center" />
                                             <TextBlock x:Name="TxtDevBattery" Text="—" FontSize="13" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Border>
-                                    <Border CornerRadius="999" Background="#0BFFFFFF" Padding="12,6">
-                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                            <Grid Width="24" Height="24" VerticalAlignment="Center">
+                                    <Border CornerRadius="999" Background="#0CFFFFFF" Padding="12,6">
+                                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                            <Grid Width="22" Height="22" VerticalAlignment="Center">
                                                 <Path x:Name="WifiArc3" Data="M3,9.5 A13,13 0 0 1 21,9.5" Stroke="#93A6BC" StrokeThickness="2.2" StrokeLineCap="Round" />
                                                 <Path x:Name="WifiArc2" Data="M7.2,13.6 A8,8 0 0 1 16.8,13.6" Stroke="#93A6BC" StrokeThickness="2.2" StrokeLineCap="Round" />
                                                 <Path x:Name="WifiArc1" Data="M10.6,17.6 A3.2,3.2 0 0 1 13.4,17.6" Stroke="#93A6BC" StrokeThickness="2.2" StrokeLineCap="Round" />
@@ -565,30 +656,33 @@
                                             <TextBlock x:Name="TxtDevWifi" Text="—" FontSize="13" VerticalAlignment="Center" MaxWidth="130" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
                                     </Border>
-                                    <Border CornerRadius="999" Background="#0BFFFFFF" Padding="12,6">
-                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                            <Grid Width="22" Height="22" VerticalAlignment="Center">
-                                                <Path x:Name="IcoBt" Width="15" Height="15" Stretch="Uniform" Fill="#93A6BC" Data="M17.71,7.71 L12,2 h-1 v7.59 L6.41,5 L5,6.41 L10.59,12 L5,17.59 L6.41,19 L11,14.41 V22 h1 l5.71,-5.71 -4.3,-4.29 4.3,-4.29 Z M13,5.83 l1.88,1.88 L13,9.59 V5.83 Z M14.88,16.29 L13,18.17 v-3.76 l1.88,1.88 Z" />
+                                    <Border CornerRadius="999" Background="#0CFFFFFF" Padding="12,6">
+                                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                            <Grid Width="20" Height="20" VerticalAlignment="Center">
+                                                <Path x:Name="IcoBt" Width="14" Height="14" Stretch="Uniform" Fill="#93A6BC" Data="M17.71,7.71 L12,2 h-1 v7.59 L6.41,5 L5,6.41 L10.59,12 L5,17.59 L6.41,19 L11,14.41 V22 h1 l5.71,-5.71 -4.3,-4.29 4.3,-4.29 Z M13,5.83 l1.88,1.88 L13,9.59 V5.83 Z M14.88,16.29 L13,18.17 v-3.76 l1.88,1.88 Z" />
                                                 <Path x:Name="BtSlash" Data="M4,19 L19,5" Stroke="#FF6B6B" StrokeThickness="2" StrokeLineCap="Round" IsVisible="False" />
                                             </Grid>
                                             <TextBlock x:Name="TxtDevBt" Text="—" FontSize="13" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
+
                                 <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,14,0,0" HorizontalAlignment="Left"
-                                        Background="#08FFFFFF" BorderBrush="#1A2A38" BorderThickness="1" CornerRadius="10"
-                                        Padding="10,7" Cursor="Hand" PointerPressed="BtnHomeHelper_Click" ToolTip.Tip="高级互联：剪贴板 / 通知 / 短信">
+                                        Background="#0BFFFFFF" BorderBrush="#1F3244" BorderThickness="1" CornerRadius="11"
+                                        Padding="11,7" Cursor="Hand" PointerPressed="BtnHomeHelper_Click" ToolTip.Tip="高级互联：双向剪贴板 / 通知 / 短信">
                                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                         <Ellipse x:Name="DotHelper" Width="7" Height="7" Fill="#64758A" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="TxtHelperHome" Text="高级互联 · 检测中" FontSize="12" Foreground="#93A6BC" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="TxtHelperHome" Text="高级互联 · 未连接设备" FontSize="12" Foreground="#B7C8DB" VerticalAlignment="Center" />
                                         <Path Width="9" Height="9" Stretch="Uniform" Stroke="#64758A" StrokeThickness="1.8" Data="M6,3 L11,8 L6,13" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
+
                                 <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="9" Margin="0,16,0,0">
                                     <Button x:Name="BtnCast" Classes="primary" Click="BtnCast_Click">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Path Width="11" Height="12" Stretch="Uniform" Fill="#0A2130" Data="M4,2 L18,11 L4,20 Z" />
-                                            <TextBlock Text="开始投屏" Foreground="#0A2130" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <Ellipse x:Name="DotCasting" Width="7" Height="7" Fill="#0A2130" IsVisible="False" VerticalAlignment="Center" />
+                                            <Path Width="11" Height="12" Stretch="Uniform" Fill="#0A2130" Data="M4,2 L18,11 L4,20 Z" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="TxtCastBtn" Text="开始投屏" Foreground="#0A2130" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
                                     <Button x:Name="BtnStopCast" Classes="ghost" Content="停止投屏" Click="BtnStopCast_Click" />
@@ -607,28 +701,26 @@
                             </Grid>
                         </Border>
 
-                        <!-- 性能：一列一块，中间细分隔线 -->
-                        <Border Classes="card">
-                            <StackPanel Spacing="16">
+                        <!-- 性能监控 -->
+                        <Border Classes="card" Padding="20,16">
+                            <StackPanel Spacing="13">
                                 <Grid ColumnDefinitions="*,Auto,Auto">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Classes="section" Text="性能" />
-                                    </StackPanel>
-                                    <Border Grid.Column="1" CornerRadius="999" Background="#0BFFFFFF" Padding="10,5" VerticalAlignment="Center" Margin="0,0,8,0">
-                                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <TextBlock Classes="section" Text="性能" VerticalAlignment="Center" />
+                                    <Border Grid.Column="1" CornerRadius="999" Background="#0CFFFFFF" Padding="11,5" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                                 <TextBlock Text="↓" FontSize="11" Foreground="#6FD3FF" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="TxtNetDown" Text="—" FontSize="11" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="TxtNetDown" Text="—" FontSize="11.5" VerticalAlignment="Center" />
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                                 <TextBlock Text="↑" FontSize="11" Foreground="#A8C7FF" VerticalAlignment="Center" />
-                                                <TextBlock x:Name="TxtNetUp" Text="—" FontSize="11" VerticalAlignment="Center" />
+                                                <TextBlock x:Name="TxtNetUp" Text="—" FontSize="11.5" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
-                                    <Border Grid.Column="2" CornerRadius="999" Background="#0BFFFFFF" Padding="10,5" VerticalAlignment="Center">
+                                    <Border Grid.Column="2" CornerRadius="999" Background="#0CFFFFFF" Padding="11,5" VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Ellipse x:Name="PerfDot" Width="5" Height="5" Fill="#33465B" VerticalAlignment="Center" />
+                                            <Ellipse x:Name="PerfDot" Width="6" Height="6" Fill="#3A4A47" VerticalAlignment="Center" />
                                             <TextBlock x:Name="TxtPerfHint" Text="等待设备" FontSize="11" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Border>
@@ -656,21 +748,23 @@
                                     <StackPanel Grid.Column="6" Spacing="8">
                                         <TextBlock Classes="overline" Text="电池温度" />
                                         <TextBlock x:Name="TxtPerfTemp" Text="—" FontSize="23" FontWeight="DemiBold" LetterSpacing="-0.6" />
-                                        <ProgressBar x:Name="BarTemp" Classes="metric" Minimum="0" Maximum="60" Value="0" Foreground="#FF8A65" />
+                                        <ProgressBar x:Name="BarTemp" Classes="metric" Minimum="0" Maximum="60" Value="0" Foreground="#6FD3FF" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </Border>
 
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
-                            <!-- 投屏 -->
-                            <Border Grid.Column="0" Classes="card">
-                                <StackPanel Spacing="15">
+                            <!-- 投屏配置 -->
+                            <Border Grid.Column="0" Classes="card" Padding="20,16">
+                                <StackPanel Spacing="12">
                                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                                        <TextBlock Classes="section" Text="投屏" />
-                                        <TextBlock x:Name="TxtCastStatus" Grid.Column="1" Classes="caption" Text="未投屏" VerticalAlignment="Center" />
+                                        <TextBlock Classes="section" Text="投屏" VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" CornerRadius="999" Background="#0CFFFFFF" Padding="10,4" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TxtCastStatus" Classes="caption" Text="未投屏" FontSize="11.5" />
+                                        </Border>
                                         <Button Grid.Column="2" Classes="ghost" Content="键盘帮助" Click="ShowKeyboardHelp_Click"
-                                                MinHeight="0" Height="26" Padding="10,2" FontSize="11.5" VerticalAlignment="Center" />
+                                                MinHeight="0" Height="28" Padding="10,2" FontSize="11.5" VerticalAlignment="Center" />
                                     </Grid>
                                     <Border Classes="subtle" Padding="4">
                                         <StackPanel Orientation="Horizontal" Spacing="2">
@@ -688,21 +782,27 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- 媒体 -->
-                            <Border Grid.Column="1" Classes="card">
+                            <!-- 媒体控制 -->
+                            <Border Grid.Column="1" Classes="card" Padding="20,16">
                                 <Grid ColumnDefinitions="Auto,*" RowDefinitions="*,Auto">
-                                    <Border Width="74" Height="74" CornerRadius="18" VerticalAlignment="Top">
+                                    <Border x:Name="MediaArtBorder" Width="74" Height="74" CornerRadius="18" VerticalAlignment="Top"
+                                            BorderBrush="#1F3342" BorderThickness="1.5">
                                         <Border.Background>
                                             <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                                <GradientStop Offset="0" Color="#1B2B36" />
-                                                <GradientStop Offset="1" Color="#101A20" />
+                                                <GradientStop Offset="0" Color="#1B2E3E" />
+                                                <GradientStop Offset="1" Color="#101A24" />
                                             </LinearGradientBrush>
                                         </Border.Background>
-                                        <Path Width="24" Height="24" Stretch="Uniform" Fill="#4E6B72" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        <Path Width="24" Height="24" Stretch="Uniform" Fill="#6FD3FF" HorizontalAlignment="Center" VerticalAlignment="Center"
                                               Data="M9,18 A3.2,3.2 0 1 1 9,11.6 A3.2,3.2 0 1 1 9,18 Z M12.2,15.4 V4 L20,2.6 V13.6" />
                                     </Border>
                                     <StackPanel Grid.Column="1" Margin="16,0,0,0" Spacing="5" VerticalAlignment="Center">
-                                        <TextBlock Classes="overline" Text="NOW PLAYING" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                            <TextBlock Classes="overline" Text="NOW PLAYING" VerticalAlignment="Center" />
+                                            <Border CornerRadius="999" Background="#126FD3FF" Padding="8,2">
+                                                <TextBlock x:Name="TxtMediaState" Text="空闲" FontSize="10.5" Foreground="#8EE0FF" />
+                                            </Border>
+                                        </StackPanel>
                                         <TextBlock x:Name="TxtMediaTitle" Text="没有正在播放的媒体" FontSize="16" FontWeight="DemiBold" TextTrimming="CharacterEllipsis" />
                                         <TextBlock x:Name="TxtMediaArtist" Classes="caption" Text="" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
@@ -713,7 +813,7 @@
                                                 <Path Width="8" Height="12" Stretch="Uniform" Fill="{StaticResource Ink}" Data="M9,0 L0,6 L9,12 Z" />
                                             </StackPanel>
                                         </Button>
-                                        <Button x:Name="BtnMediaPlay" Classes="roundIcon" Background="#1F6FD3FF" BorderBrush="#3A00DECC" Click="BtnMediaPlay_Click" ToolTip.Tip="播放 / 暂停">
+                                        <Button x:Name="BtnMediaPlay" Classes="roundIcon" Background="#226FD3FF" BorderBrush="#486FD3FF" Click="BtnMediaPlay_Click" ToolTip.Tip="播放 / 暂停">
                                             <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <Path x:Name="IconPlay" Width="11" Height="13" Stretch="Uniform" Fill="{StaticResource Brand}" Data="M5,2 L17,10 L5,18 Z" />
                                                 <Path x:Name="IconPause" Width="11" Height="13" Stretch="Uniform" Fill="{StaticResource Brand}" Data="M5,2 H8.4 V18 H5 Z M13.6,2 H17 V18 H13.6 Z" IsVisible="False" />
@@ -732,80 +832,123 @@
 
                         <!-- 快捷入口 -->
                         <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
-                            <Panel Grid.Column="0"><Border Classes="tile">
-                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                                    <Border Width="32" Height="32" CornerRadius="10" Background="#1A7C9CFF" HorizontalAlignment="Left">
-                                        <Path Width="16" Height="16" Stretch="Uniform" Fill="#A8C7FF" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M3,3 H10 V10 H3 Z M14,3 H21 V10 H14 Z M3,14 H10 V21 H3 Z M14,14 H21 V21 H14 Z" />
-                                    </Border>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="应用" FontSize="14" FontWeight="DemiBold" />
-                                        <TextBlock Text="启动与安装 APK" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                            <Panel Grid.Column="0">
+                                <Border Classes="tile">
+                                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                        <Border Width="34" Height="34" CornerRadius="10" Background="#1A7C9CFF">
+                                            <Path Width="16" Height="16" Stretch="Uniform" Fill="#A8C7FF" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M3,3 H10 V10 H3 Z M14,3 H21 V10 H14 Z M3,14 H10 V21 H3 Z M14,14 H21 V21 H14 Z" />
+                                        </Border>
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="应用" FontSize="14" FontWeight="DemiBold" />
+                                            <TextBlock Text="启动与安装 APK" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-
-                            </Border><Button Classes="hitArea" Click="BtnQuickApps_Click" /></Panel>
-                            <Panel Grid.Column="1"><Border Classes="tile">
-                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                                    <Border Width="32" Height="32" CornerRadius="10" Background="#1A6FD3FF" HorizontalAlignment="Left">
-                                        <Path Width="16" Height="16" Stretch="Uniform" Fill="#6FD3FF" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M3,4 H21 V16.5 H10.5 L5.5,21 V16.5 H3 Z" />
-                                    </Border>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="短信" FontSize="14" FontWeight="DemiBold" />
-                                        <TextBlock Text="查看与同步" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                                </Border>
+                                <Button Classes="hitArea" Click="BtnQuickApps_Click" />
+                            </Panel>
+                            <Panel Grid.Column="1">
+                                <Border Classes="tile">
+                                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                        <Border Width="34" Height="34" CornerRadius="10" Background="#1A6FD3FF">
+                                            <Path Width="16" Height="16" Stretch="Uniform" Fill="#6FD3FF" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M3,4 H21 V16.5 H10.5 L5.5,21 V16.5 H3 Z" />
+                                        </Border>
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="短信" FontSize="14" FontWeight="DemiBold" />
+                                            <TextBlock Text="查看与验证码提取" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border><Button Classes="hitArea" Click="BtnQuickSms_Click" /></Panel>
-                            <Panel Grid.Column="2"><Border Classes="tile">
-                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                                    <Border Width="32" Height="32" CornerRadius="10" Background="#1AFFD166" HorizontalAlignment="Left">
-                                        <Path Width="16" Height="16" Stretch="Uniform" Fill="#FFD166" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M2,6 A2,2 0 0 1 4,4 L9,4 L11,6.5 L20,6.5 A2,2 0 0 1 22,8.5 L22,18 A2,2 0 0 1 20,20 L4,20 A2,2 0 0 1 2,18 Z" />
-                                    </Border>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="文件" FontSize="14" FontWeight="DemiBold" />
-                                        <TextBlock Text="上传、下载与整理" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                                </Border>
+                                <Button Classes="hitArea" Click="BtnQuickSms_Click" />
+                            </Panel>
+                            <Panel Grid.Column="2">
+                                <Border Classes="tile">
+                                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                        <Border Width="34" Height="34" CornerRadius="10" Background="#1AFFD166">
+                                            <Path Width="16" Height="16" Stretch="Uniform" Fill="#FFD166" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M2,6 A2,2 0 0 1 4,4 L9,4 L11,6.5 L20,6.5 A2,2 0 0 1 22,8.5 L22,18 A2,2 0 0 1 20,20 L4,20 A2,2 0 0 1 2,18 Z" />
+                                        </Border>
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="文件" FontSize="14" FontWeight="DemiBold" />
+                                            <TextBlock Text="上传、下载与整理" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border><Button Classes="hitArea" Click="BtnQuickFiles_Click" /></Panel>
-                            <Panel Grid.Column="3"><Border Classes="tile">
-                                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                                    <Border Width="32" Height="32" CornerRadius="10" Background="#1AB8CAC6" HorizontalAlignment="Left">
-                                        <Panel Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Ellipse Width="14" Height="14" Stroke="#B9C7DA" StrokeThickness="1.6" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            <Path Data="M8,8 L12,4" Stroke="#B9C7DA" StrokeThickness="1.6" />
-                                        </Panel>
-                                    </Border>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="设置" FontSize="14" FontWeight="DemiBold" />
-                                        <TextBlock Text="偏好与助手" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                                </Border>
+                                <Button Classes="hitArea" Click="BtnQuickFiles_Click" />
+                            </Panel>
+                            <Panel Grid.Column="3">
+                                <Border Classes="tile">
+                                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                        <Border Width="34" Height="34" CornerRadius="10" Background="#1AB8CAC6">
+                                            <Panel Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Ellipse Width="14" Height="14" Stroke="#B9C7DA" StrokeThickness="1.6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <Path Data="M8,8 L12,4" Stroke="#B9C7DA" StrokeThickness="1.6" />
+                                            </Panel>
+                                        </Border>
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="设置" FontSize="14" FontWeight="DemiBold" />
+                                            <TextBlock Text="助手与软件更新" FontSize="11.5" Foreground="{StaticResource InkMute}" />
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border><Button Classes="hitArea" Click="BtnQuickSettings_Click" /></Panel>
+                                </Border>
+                                <Button Classes="hitArea" Click="BtnQuickSettings_Click" />
+                            </Panel>
                         </Grid>
-
                     </StackPanel>
                 </ScrollViewer>
 
                 <!-- ═══════════ 文件 ═══════════ -->
                 <Grid x:Name="PageFiles" IsVisible="False" RowDefinitions="Auto,*">
                     <Border Grid.Row="0" Classes="card" Padding="16">
-                        <StackPanel Spacing="12">
+                        <StackPanel Spacing="10">
+                            <!-- 面包屑 + 快捷路径 -->
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                    <ItemsControl x:Name="ListBreadcrumbs">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="2" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                                    <TextBlock Text="›" Foreground="#4A5C70" VerticalAlignment="Center" IsVisible="{Binding ShowSeparator}" />
+                                                    <Button Classes="crumb" Content="{Binding Label}" Click="Breadcrumb_Click" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Button x:Name="BtnJumpRoot" Classes="quickChip" Content="根目录 /" Tag="/" Click="QuickJump_Click" IsVisible="False" />
+                                    <Button Classes="quickChip" Content="SD卡" Tag="/sdcard/" Click="QuickJump_Click" />
+                                    <Button Classes="quickChip" Content="下载" Tag="/sdcard/Download/" Click="QuickJump_Click" />
+                                    <Button Classes="quickChip" Content="相册" Tag="/sdcard/DCIM/" Click="QuickJump_Click" />
+                                </StackPanel>
+                            </Grid>
+
                             <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
                                 <TextBox x:Name="TxtPath" Grid.Column="0" Text="/sdcard/" KeyDown="TxtPath_KeyDown" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12.5" />
                                 <Button x:Name="BtnPathGo" Grid.Column="1" Classes="ghost" Content="前往" Click="BtnPathGo_Click" />
-                                <Button x:Name="BtnUp" Grid.Column="2" Classes="roundIcon" Width="38" Height="38" Click="BtnUp_Click" ToolTip.Tip="上一级">
+                                <Button x:Name="BtnUp" Grid.Column="2" Classes="roundIcon" Width="38" Height="38" Click="BtnUp_Click" ToolTip.Tip="上一级 (Backspace)">
                                     <Path Width="12" Height="12" Stretch="Uniform" Stroke="{StaticResource Ink}" StrokeThickness="1.8" Data="M12,19 V5 M6,11 L12,5 L18,11" />
                                 </Button>
-                                <Button x:Name="BtnRefreshFiles" Grid.Column="3" Classes="roundIcon" Width="38" Height="38" Click="BtnRefreshFiles_Click" ToolTip.Tip="刷新">
+                                <Button x:Name="BtnRefreshFiles" Grid.Column="3" Classes="roundIcon" Width="38" Height="38" Click="BtnRefreshFiles_Click" ToolTip.Tip="刷新 (F5)">
                                     <Path Width="14" Height="14" Stretch="Uniform" Stroke="{StaticResource Ink}" StrokeThickness="1.8" Data="M20,12 A8,8 0 1 1 17.6,6.4 M17.6,2.5 V6.8 H13.3" />
                                 </Button>
                             </Grid>
+
                             <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8">
                                 <Button x:Name="BtnUpload" Grid.Column="0" Classes="primary" Content="上传" Click="BtnUpload_Click" />
                                 <Button x:Name="BtnDownload" Grid.Column="1" Classes="ghost" Content="下载" Click="BtnDownload_Click" />
                                 <Button x:Name="BtnNewFolder" Grid.Column="2" Classes="ghost" Content="新建文件夹" Click="BtnNewFolder_Click" />
-                                <Button x:Name="BtnRename" Grid.Column="3" Classes="ghost" Content="重命名" Click="BtnRename_Click" />
-                                <Button x:Name="BtnDelete" Grid.Column="4" Classes="danger" Content="删除" Click="BtnDelete_Click" />
-                                <TextBlock x:Name="TxtFileStatus" Grid.Column="5" Classes="caption" Text="" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0" />
+                                <Button x:Name="BtnRename" Grid.Column="3" Classes="ghost" Content="重命名" Click="BtnRename_Click" ToolTip.Tip="重命名 (F2)" />
+                                <Button x:Name="BtnDelete" Grid.Column="4" Classes="danger" Content="删除" Click="BtnDelete_Click" ToolTip.Tip="删除 (Delete)" />
+                                <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0">
+                                    <Border CornerRadius="999" Background="#1A6FD3FF" Padding="9,3" IsVisible="{Binding #TxtFileSelection.IsVisible}">
+                                        <TextBlock x:Name="TxtFileSelection" Text="" FontSize="11.5" Foreground="#8EE0FF" IsVisible="False" />
+                                    </Border>
+                                    <TextBlock x:Name="TxtFileStatus" Classes="caption" Text="" VerticalAlignment="Center" />
+                                </StackPanel>
                                 <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="14">
                                     <ToggleSwitch x:Name="ChkShowHidden" Content="隐藏文件" FontSize="12" IsCheckedChanged="FileOption_Changed" />
                                     <ToggleSwitch x:Name="ChkUseRoot" Content="Root" FontSize="12" IsCheckedChanged="FileOption_Changed" />
@@ -814,18 +957,23 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Row="1" Margin="0,14,0,0" Classes="card" Padding="6">
-                        <ListBox x:Name="ListFiles" Background="Transparent" SelectionMode="Multiple" DoubleTapped="ListFiles_DoubleTapped">
+                    <Border Grid.Row="1" Margin="0,12,0,0" Classes="card" Padding="6">
+                        <ListBox x:Name="ListFiles" Background="Transparent" SelectionMode="Multiple"
+                                 DoubleTapped="ListFiles_DoubleTapped" SelectionChanged="ListFiles_SelectionChanged">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid ColumnDefinitions="42,*,100,138" Margin="14,12" Background="Transparent">
+                                    <Grid ColumnDefinitions="40,*,Auto,100,138" Margin="14,11" Background="Transparent">
                                         <Panel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left">
                                             <Path Width="19" Height="19" Stretch="Uniform" Fill="#6FD3FF" Data="M2,6 A2,2 0 0 1 4,4 L9,4 L11,6.5 L20,6.5 A2,2 0 0 1 22,8.5 L22,18 A2,2 0 0 1 20,20 L4,20 A2,2 0 0 1 2,18 Z" IsVisible="{Binding IsDirectory}" />
-                                            <Path Width="15" Height="17" Stretch="Uniform" Fill="#7E938F" Data="M6,2 L14,2 L19,7 L19,22 L6,22 Z M14,2 L14,7 L19,7" IsVisible="{Binding !IsDirectory}" />
+                                            <Path Width="17" Height="17" Stretch="Uniform" Stroke="#A8C7FF" StrokeThickness="1.8" Fill="Transparent" Data="M10,13 A5,5 0 0 0 17.54,13.54 L20.54,10.54 A5,5 0 0 0 13.46,3.46 L11.75,5.17 M14,11 A5,5 0 0 0 6.46,10.46 L3.46,13.46 A5,5 0 0 0 10.54,20.54 L12.25,18.83" IsVisible="{Binding IsLink}" />
+                                            <Path Width="15" Height="17" Stretch="Uniform" Fill="#7E938F" Data="M6,2 L14,2 L19,7 L19,22 L6,22 Z M14,2 L14,7 L19,7" IsVisible="{Binding IsRegularFile}" Opacity="0.85" />
                                         </Panel>
                                         <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" FontSize="13" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="2" Text="{Binding SizeText}" Classes="caption" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="3" Text="{Binding DateText}" Classes="caption" VerticalAlignment="Center" />
+                                        <Border Grid.Column="2" CornerRadius="6" Background="#1AA8C7FF" Padding="6,2" Margin="8,0" VerticalAlignment="Center" IsVisible="{Binding IsLink}">
+                                            <TextBlock Text="链接" FontSize="10" Foreground="#C4DBFF" />
+                                        </Border>
+                                        <TextBlock Grid.Column="3" Text="{Binding SizeText}" Classes="caption" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="4" Text="{Binding DateText}" Classes="caption" VerticalAlignment="Center" />
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -838,14 +986,20 @@
                 <Grid x:Name="PageApps" IsVisible="False" RowDefinitions="Auto,Auto,*">
                     <Border Grid.Row="0" Classes="card" Padding="14">
                         <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
-                            <TextBox x:Name="TxtAppSearch" Grid.Column="0" Watermark="搜索应用或包名" TextChanged="TxtAppSearch_TextChanged" />
+                            <Grid Grid.Column="0">
+                                <TextBox x:Name="TxtAppSearch" PlaceholderText="搜索应用名称或包名" Padding="14,10,38,10" TextChanged="TxtAppSearch_TextChanged" />
+                                <Button x:Name="BtnClearAppSearch" Content="✕" Background="Transparent" BorderThickness="0"
+                                        Foreground="{StaticResource InkDim}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Margin="0,0,8,0" Padding="6,2" MinHeight="0" FontSize="12" IsVisible="False" Click="BtnClearAppSearch_Click" />
+                            </Grid>
                             <TextBlock x:Name="TxtAppsCount" Grid.Column="1" Classes="caption" VerticalAlignment="Center" />
                             <Button x:Name="BtnRefreshApps" Grid.Column="2" Classes="ghost" Content="刷新" Click="BtnRefreshApps_Click" />
                             <Button x:Name="BtnInstallApk" Grid.Column="3" Classes="primary" Content="安装 APK" Click="BtnInstallApk_Click" />
                         </Grid>
                     </Border>
-                    <StackPanel Grid.Row="1" Spacing="6" Margin="2,14,2,0">
-                        <TextBlock x:Name="TxtRecentLabel" Text="最近使用" Classes="overline" IsVisible="False" />
+
+                    <StackPanel Grid.Row="1" Spacing="6" Margin="2,12,2,0">
+                        <TextBlock x:Name="TxtRecentLabel" Text="常用应用" Classes="overline" IsVisible="False" />
                         <ItemsControl x:Name="ListRecent">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -854,37 +1008,54 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Classes="ghost" Margin="0,0,8,8" Content="{Binding DisplayName}" Click="RecentApp_Click" />
+                                    <Button Classes="ghost" MinHeight="0" Padding="10,6" Margin="0,0,8,8" CornerRadius="999" Click="RecentApp_Click" ToolTip.Tip="{Binding TooltipText}">
+                                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                                            <Border Width="20" Height="20" CornerRadius="6" ClipToBounds="True" Background="#14FFFFFF">
+                                                <Image Source="{Binding Icon}" Width="18" Height="18" />
+                                            </Border>
+                                            <TextBlock Text="{Binding DisplayName}" FontSize="12.5" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
-                    <Grid Grid.Row="2" Margin="0,8,0,0">
-                        <ListBox x:Name="ListApps" Background="#FF0A0F17">
-                            <ListBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Click="AppTile_Click" Background="Transparent" CornerRadius="16" Width="120" Height="130" Padding="0">
-                                        <StackPanel Spacing="7" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Border Width="56" Height="56" CornerRadius="15" Background="#0DFFFFFF">
-                                                <Image Source="{Binding Icon}" Width="50" Height="50" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                            </Border>
-                                            <TextBlock Text="{Binding DisplayName}" FontSize="11.5" TextAlignment="Center" TextWrapping="Wrap" MaxHeight="30" TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </Button>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <TextBlock x:Name="PanelAppsEmpty" Text="还没有应用数据，点右上角刷新" Classes="caption" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
-                    </Grid>
+
+                    <Border Grid.Row="2" Margin="0,8,0,0" Classes="card" Padding="10">
+                        <Grid>
+                            <ListBox x:Name="ListApps" Background="Transparent">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Classes="appTile" Click="AppTile_Click" ToolTip.Tip="{Binding TooltipText}">
+                                            <Grid>
+                                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0"
+                                                        CornerRadius="999" Background="#246FD3FF" Padding="6,1" IsVisible="{Binding HasLaunchCount}">
+                                                    <TextBlock Text="{Binding LaunchBadge}" FontSize="10" FontWeight="SemiBold" Foreground="#8EE0FF" />
+                                                </Border>
+                                                <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <Border Width="56" Height="56" CornerRadius="15" Background="#0EFFFFFF" BorderBrush="#18FFFFFF" BorderThickness="1">
+                                                        <Image Source="{Binding Icon}" Width="46" Height="46" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="11.5" TextAlignment="Center"
+                                                               TextWrapping="Wrap" MaxWidth="104" MaxHeight="32" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="PanelAppsEmpty" Text="还没有应用数据，点右上角刷新" Classes="caption" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="False" />
+                        </Grid>
+                    </Border>
                 </Grid>
 
                 <!-- ═══════════ 短信 ═══════════ -->
-                <Grid x:Name="PageSms" IsVisible="False" ColumnDefinitions="380,*" ColumnSpacing="14">
+                <Grid x:Name="PageSms" IsVisible="False" ColumnDefinitions="388,*" ColumnSpacing="14">
                     <Border Grid.Column="0" Classes="card" Padding="14">
                         <Grid RowDefinitions="Auto,*">
                             <Grid ColumnDefinitions="*,Auto" Margin="6,2,6,10">
@@ -900,10 +1071,13 @@
                             <ListBox x:Name="ListSms" Grid.Row="1" Background="Transparent" SelectionChanged="ListSms_SelectionChanged">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Spacing="5" Margin="14,12">
-                                            <Grid ColumnDefinitions="*,Auto">
-                                                <TextBlock Text="{Binding Address}" FontWeight="DemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Column="1" Text="{Binding TimeText}" Classes="caption" />
+                                        <StackPanel Spacing="5" Margin="14,11">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                                <TextBlock Grid.Column="0" Text="{Binding Address}" FontWeight="DemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                                                <Border Grid.Column="1" CornerRadius="6" Background="#226FD3FF" Padding="6,1" VerticalAlignment="Center" IsVisible="{Binding HasVerificationCode}">
+                                                    <TextBlock Text="验证码" FontSize="10" Foreground="#8EE0FF" />
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding TimeText}" Classes="caption" VerticalAlignment="Center" />
                                             </Grid>
                                             <TextBlock Text="{Binding Snippet}" Classes="caption" TextTrimming="CharacterEllipsis" />
                                         </StackPanel>
@@ -916,11 +1090,21 @@
                         <Grid>
                             <StackPanel x:Name="PanelSmsDetail" Spacing="12" IsVisible="False">
                                 <TextBlock Classes="overline" Text="短信详情" />
-                                <TextBlock x:Name="TxtSmsAddress" FontSize="20" FontWeight="DemiBold" />
-                                <TextBlock x:Name="TxtSmsTime" Classes="caption" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock x:Name="TxtSmsAddress" FontSize="20" FontWeight="DemiBold" />
+                                        <TextBlock x:Name="TxtSmsTime" Classes="caption" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Button x:Name="BtnCopySmsCode" Classes="primary" MinHeight="0" Padding="14,7" IsVisible="False" Click="BtnCopySmsCode_Click">
+                                            <TextBlock x:Name="TxtCopySmsCode" Text="复制验证码" Foreground="#0A2130" FontSize="12.5" FontWeight="DemiBold" />
+                                        </Button>
+                                        <Button x:Name="BtnCopySmsBody" Classes="ghost" MinHeight="0" Padding="12,7" Content="复制全文" FontSize="12.5" Click="BtnCopySmsBody_Click" />
+                                    </StackPanel>
+                                </Grid>
                                 <Border Height="1" Background="#17222F" Margin="0,4" />
                                 <ScrollViewer>
-                                    <TextBlock x:Name="TxtSmsBody" TextWrapping="Wrap" FontSize="14.5" LineHeight="24" />
+                                    <TextBlock x:Name="TxtSmsBody" TextWrapping="Wrap" FontSize="14.5" LineHeight="25" />
                                 </ScrollViewer>
                             </StackPanel>
                             <StackPanel x:Name="PanelSmsEmpty" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
@@ -933,7 +1117,56 @@
 
                 <!-- ═══════════ 设置 ═══════════ -->
                 <ScrollViewer x:Name="PageSettings" IsVisible="False">
-                    <StackPanel Spacing="11">
+                    <StackPanel Spacing="12">
+                        <!-- 软件更新中心 -->
+                        <Border Classes="card">
+                            <StackPanel Spacing="14">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Classes="section" Text="软件更新" />
+                                        <TextBlock Classes="caption" Text="电脑端与手机端助手双端版本检查与内容校验" />
+                                    </StackPanel>
+                                    <Border x:Name="BadgeUpdateState" Grid.Column="1" CornerRadius="999" Background="#186FD3FF" Padding="11,5" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtUpdateBadge" Text="待检查" FontSize="11.5" FontWeight="SemiBold" Foreground="#8EE0FF" />
+                                    </Border>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                    <Border Grid.Column="0" Classes="subtle">
+                                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="8">
+                                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                                <TextBlock Classes="overline" Text="WINDOWS 客户端" />
+                                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtVersion" Text="v3.2.6" FontSize="18" FontWeight="DemiBold" />
+                                                    <TextBlock x:Name="TxtRemoteVersion" Text="等待检查" Classes="caption" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+                                                <Button x:Name="BtnCheckUpdate" Classes="ghost" MinHeight="0" Padding="13,7" FontSize="12.5" Content="检查更新" Click="BtnCheckUpdate_Click" />
+                                                <Button x:Name="BtnOpenUpdateModal" Classes="primary" MinHeight="0" Padding="13,7" FontSize="12.5" Content="查看新版本" IsVisible="False" Click="BtnOpenUpdateModal_Click" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Column="1" Classes="subtle">
+                                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="8">
+                                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                                                <TextBlock Classes="overline" Text="ANDROID 互联助手" />
+                                                <TextBlock x:Name="TxtPhoneUpdate" Text="未连接设备" FontSize="15" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                                <Button x:Name="BtnPhoneUpdate" Classes="primary" MinHeight="0" Padding="13,7" FontSize="12.5" Content="更新助手" Click="BtnInstallHelper_Click" IsVisible="False" />
+                                                <TextBlock Text="随客户端打包分发，连上设备自动比对" Classes="caption" FontSize="11.5" VerticalAlignment="Center" IsVisible="{Binding !#BtnPhoneUpdate.IsVisible}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+
+                                <TextBlock x:Name="TxtUpdateStatus" Classes="caption" Text="" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 连接 -->
                         <Border Classes="card">
                             <StackPanel Spacing="11">
                                 <TextBlock Classes="section" Text="连接" />
@@ -948,20 +1181,21 @@
                                 <Border Height="1" Background="#17222F" />
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                                     <TextBlock x:Name="TxtLastEndpoint" Classes="caption" VerticalAlignment="Center" Text="上次设备：—" />
-                                    <Button Grid.Column="1" Classes="ghost" Content="清除" Click="BtnClearLast_Click" />
+                                    <Button Grid.Column="1" Classes="ghost" MinHeight="0" Padding="12,6" Content="清除" Click="BtnClearLast_Click" />
                                 </Grid>
                             </StackPanel>
                         </Border>
 
+                        <!-- 高级互联 -->
                         <Border Classes="card">
                             <StackPanel Spacing="11">
                                 <TextBlock Classes="section" Text="高级互联" />
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="同步剪贴板" VerticalAlignment="Center" />
+                                    <TextBlock Text="双向同步剪贴板" VerticalAlignment="Center" />
                                     <ToggleSwitch Grid.Column="1" x:Name="ChkSyncClipboard" IsCheckedChanged="Setting_Changed" />
                                 </Grid>
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="转发通知" VerticalAlignment="Center" />
+                                    <TextBlock Text="转发通知到桌面浮窗" VerticalAlignment="Center" />
                                     <ToggleSwitch Grid.Column="1" x:Name="ChkSyncNotifications" IsCheckedChanged="Setting_Changed" />
                                 </Grid>
                                 <Grid ColumnDefinitions="*,Auto">
@@ -974,10 +1208,6 @@
                                 </Grid>
                                 <Border Height="1" Background="#17222F" />
                                 <TextBlock x:Name="TxtHelperStatus" Classes="caption" Text="助手未安装" TextWrapping="Wrap" />
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                    <TextBlock x:Name="TxtPhoneUpdate" Classes="caption" Text="" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" x:Name="BtnPhoneUpdate" Classes="ghost" Content="更新助手" Click="BtnInstallHelper_Click" IsVisible="False" />
-                                </Grid>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button x:Name="BtnInstallHelper" Classes="primary" Content="安装 / 更新助手" Click="BtnInstallHelper_Click" />
                                     <Button x:Name="BtnRevokeHelper" Classes="danger" Content="停用助手" Click="BtnRevokeHelper_Click" />
@@ -985,8 +1215,9 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- 关于 -->
                         <Border Classes="card">
-                            <StackPanel Spacing="11">
+                            <StackPanel Spacing="12">
                                 <TextBlock Classes="section" Text="关于" />
                                 <Border Background="#146FD3FF" BorderBrush="#336FD3FF" BorderThickness="1" CornerRadius="14" Padding="12,10">
                                     <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
@@ -1002,16 +1233,9 @@
                                                 MinHeight="0" Height="30" Padding="12,4" FontSize="12" VerticalAlignment="Center" />
                                     </Grid>
                                 </Border>
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                                    <TextBlock x:Name="TxtVersion" Text="版本 3.2.5" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Classes="ghost" Content="检查更新" Click="BtnCheckUpdate_Click" />
-                                </Grid>
-                                <TextBlock x:Name="TxtUpdateStatus" Classes="caption" Text="" TextWrapping="Wrap" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Classes="ghost" Content="键盘帮助" Click="ShowKeyboardHelp_Click" />
                                     <Button Classes="ghost" Content="新手教程" Click="ShowTutorial_Click" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Classes="ghost" Content="打开日志" Click="BtnOpenLogs_Click" />
                                     <Button Classes="ghost" Content="打开终端" Click="BtnOpenTerminal_Click" />
                                     <Button Classes="ghost" Content="GitHub" Click="BtnOpenGithub_Click" />
@@ -1026,23 +1250,23 @@
         <!-- 设备浮层：点顶栏胶囊打开 -->
         <Grid x:Name="DevicePopoverHost" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" ZIndex="30">
             <Border Background="#01000000" PointerPressed="CloseDevicePopover" />
-            <Border x:Name="DevicePopover" Width="392" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,132,26,0"
-                    Background="#FF0D151F" BorderBrush="#2A3B4D" BorderThickness="1" CornerRadius="18" Padding="16"
-                    BoxShadow="0 22 54 0 #77000000">
-                <StackPanel Spacing="12">
+            <Border x:Name="DevicePopover" Width="404" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,128,24,0"
+                    Background="#F80D151F" BorderBrush="#2D4156" BorderThickness="1" CornerRadius="18" Padding="16"
+                    BoxShadow="0 22 54 0 #88000000">
+                <StackPanel Spacing="11">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                         <StackPanel Spacing="2">
                             <TextBlock Classes="section" Text="设备" />
                             <TextBlock x:Name="TxtPopoverHint" Classes="caption" Text="点一下切换要控制的那台" />
                         </StackPanel>
                         <Button Grid.Column="1" x:Name="BtnPopoverRefresh" Classes="roundIcon" Width="34" Height="34"
-                                VerticalAlignment="Center" Click="BtnPopoverRefresh_Click" ToolTip.Tip="刷新">
+                                VerticalAlignment="Center" Click="BtnPopoverRefresh_Click" ToolTip.Tip="刷新设备与局域网发现">
                             <Path Width="15" Height="15" Stretch="Uniform" Stroke="{StaticResource InkDim}" StrokeThickness="1.6"
                                   Data="M4,12 A8,8 0 1 1 6.4,17.8 M4,12 V7.6 M4,12 H8.4" />
                         </Button>
                     </Grid>
 
-                    <ScrollViewer x:Name="ScrollPopoverDevices" MaxHeight="252" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer x:Name="ScrollPopoverDevices" MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Spacing="6">
                             <ItemsControl x:Name="ListPopoverDevices">
                                 <ItemsControl.ItemTemplate>
@@ -1074,29 +1298,52 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock x:Name="TxtPopoverEmpty" Text="没有发现设备" Classes="caption" IsVisible="False" Margin="4,6" />
+                            <TextBlock x:Name="TxtPopoverEmpty" Text="没有发现已连接设备" Classes="caption" IsVisible="False" Margin="4,6" />
                         </StackPanel>
                     </ScrollViewer>
+
+                    <!-- mDNS 自动发现的无线设备 -->
+                    <StackPanel x:Name="PanelMdnsFound" Spacing="6" IsVisible="False">
+                        <TextBlock Classes="overline" Text="局域网发现（点一下直连）" />
+                        <ItemsControl x:Name="ListMdnsDevices">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Classes="deviceRow" MinHeight="42" Padding="10,7" Margin="0,0,0,4" Click="PopoverMdns_Click">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBlock Grid.Column="0" Text="{Binding Address}" FontFamily="Cascadia Mono, Consolas, monospace" FontSize="12" VerticalAlignment="Center" />
+                                            <Border Grid.Column="1" Background="#1A6FD3FF" CornerRadius="6" Padding="7,2">
+                                                <TextBlock Text="{Binding KindText}" FontSize="10.5" Foreground="#8EE0FF" />
+                                            </Border>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <Button x:Name="BtnPopoverReconnectLast" Classes="quickChip" HorizontalAlignment="Left" IsVisible="False" Click="BtnPopoverReconnectLast_Click">
+                        <TextBlock x:Name="TxtPopoverReconnectLast" Text="重连上次设备" FontSize="11.5" />
+                    </Button>
 
                     <Border Height="1" Background="#17222F" />
 
                     <TextBlock Classes="overline" Text="无线连接" />
-                    <Grid ColumnDefinitions="*,78,Auto" ColumnSpacing="8">
-                        <TextBox x:Name="TxtPopoverIp" Watermark="手机 IP" />
-                        <TextBox Grid.Column="1" x:Name="TxtPopoverPort" Text="5555" />
+                    <Grid ColumnDefinitions="*,84,Auto" ColumnSpacing="8">
+                        <TextBox x:Name="TxtPopoverIp" PlaceholderText="手机 IP 或 IP:端口" />
+                        <TextBox Grid.Column="1" x:Name="TxtPopoverPort" PlaceholderText="端口" />
                         <Button Grid.Column="2" x:Name="BtnPopoverConnect" Classes="primary" Content="连接" Click="BtnPopoverConnect_Click" />
                     </Grid>
                     <TextBlock x:Name="TxtPopoverStatus" Classes="caption" Text="" TextWrapping="Wrap" />
-                    <Button x:Name="BtnPopoverPairToggle" Classes="ghost" Content="新设备需要配对码？" HorizontalAlignment="Left" Click="BtnPopoverPairToggle_Click" />
+                    <Button x:Name="BtnPopoverPairToggle" Classes="ghost" MinHeight="0" Padding="12,7" FontSize="12.5" Content="新设备需要配对码？" HorizontalAlignment="Left" Click="BtnPopoverPairToggle_Click" />
                     <StackPanel x:Name="PanelPopoverPair" Spacing="8" IsVisible="False">
                         <TextBlock Classes="caption" TextWrapping="Wrap"
-                                   Text="手机：无线调试 → 使用配对码配对设备。按弹窗里的 IP、端口、6 位码填写，配对成功后会自动连接。" />
+                                   Text="手机：无线调试 → 使用配对码配对设备。配对端口与连接端口不同，配对后会自动探测连接端口。" />
                         <Grid ColumnDefinitions="*,110" ColumnSpacing="8">
-                            <TextBox x:Name="TxtPopoverPairIp" Watermark="配对 IP" />
-                            <TextBox Grid.Column="1" x:Name="TxtPopoverPairPort" Watermark="配对端口" />
+                            <TextBox x:Name="TxtPopoverPairIp" PlaceholderText="配对 IP" />
+                            <TextBox Grid.Column="1" x:Name="TxtPopoverPairPort" PlaceholderText="配对端口" />
                         </Grid>
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <TextBox x:Name="TxtPopoverPairCode" Watermark="6 位配对码" MaxLength="6" />
+                            <TextBox x:Name="TxtPopoverPairCode" PlaceholderText="6 位配对码" MaxLength="6" />
                             <Button Grid.Column="1" x:Name="BtnPopoverPairGo" Classes="primary" Content="配对并连接" Click="BtnPopoverPairGo_Click" />
                         </Grid>
                         <TextBlock x:Name="TxtPopoverPairStatus" Classes="caption" Text="" TextWrapping="Wrap" />
@@ -1105,10 +1352,13 @@
             </Border>
         </Grid>
 
-        <!-- 浮层 -->
-        <StackPanel x:Name="ToastStack" Grid.ColumnSpan="2" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,26,24" Spacing="8" IsHitTestVisible="False" />
+        <!-- 窗口内右下角 Toast（已修正 Grid.RowSpan="2"） -->
+        <StackPanel x:Name="ToastStack" Grid.RowSpan="2" Grid.ColumnSpan="2" ZIndex="50"
+                    VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,26,24" Spacing="8" IsHitTestVisible="False" />
 
-        <Border x:Name="DropOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" Background="#B3060D0C" BorderBrush="#6FD3FF" BorderThickness="2" CornerRadius="20" Margin="22">
+        <!-- 拖拽上传遮罩 -->
+        <Border x:Name="DropOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" ZIndex="45" IsVisible="False"
+                Background="#C807101A" BorderBrush="#6FD3FF" BorderThickness="2" CornerRadius="20" Margin="22">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
                 <Path Width="40" Height="40" Stretch="Uniform" Fill="#6FD3FF" HorizontalAlignment="Center" Data="M12,3 V16 M6,10 L12,16 L18,10 M4,19 H20" Stroke="#6FD3FF" StrokeThickness="1" />
                 <TextBlock Text="松手上传" FontSize="24" FontWeight="DemiBold" HorizontalAlignment="Center" />
@@ -1116,13 +1366,58 @@
             </StackPanel>
         </Border>
 
-        <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" Background="#A6000000">
-            <Border Background="#FF0D151F" BorderBrush="#2A3B4D" BorderThickness="1" CornerRadius="20" Padding="24" Width="430" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 24 60 0 #88000000">
+        <!-- 软件更新弹窗 -->
+        <Grid x:Name="UpdateOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" ZIndex="42" IsVisible="False" Background="#B0000000">
+            <Border Background="#F90D1622" BorderBrush="#3D6FD3FF" BorderThickness="1" CornerRadius="22" Padding="26"
+                    Width="468" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 26 68 0 #99000000">
+                <StackPanel Spacing="16">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                        <Border Grid.Column="0" Width="46" Height="46" CornerRadius="14" Background="{StaticResource BrandGrad}">
+                            <Path Width="22" Height="22" Stretch="Uniform" Fill="#0A2130" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Data="M12,2 L15,9 L22,12 L15,15 L12,22 L9,15 L2,12 L9,9 Z" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                            <TextBlock Text="发现新版本" FontSize="20" FontWeight="DemiBold" />
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <Border CornerRadius="8" Background="#12FFFFFF" Padding="8,2">
+                                    <TextBlock x:Name="TxtUpdateModalCurrent" Text="v3.2.6" FontSize="12" Foreground="{StaticResource InkDim}" />
+                                </Border>
+                                <TextBlock Text="→" Foreground="{StaticResource Brand}" FontWeight="Bold" VerticalAlignment="Center" />
+                                <Border CornerRadius="8" Background="#246FD3FF" Padding="8,2">
+                                    <TextBlock x:Name="TxtUpdateModalTarget" Text="v3.2.7" FontSize="12" FontWeight="SemiBold" Foreground="#8EE0FF" />
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border CornerRadius="12" Background="#1256D364" BorderBrush="#3356D364" BorderThickness="1" Padding="11,7">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Path Width="13" Height="13" Stretch="Uniform" Stroke="#56D364" StrokeThickness="2" Data="M2,7 L5.5,10.5 L12,3.5" />
+                            <TextBlock x:Name="TxtUpdateModalMeta" Text="内容与服务器时间校验通过" FontSize="12" Foreground="#9CE8A6" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock x:Name="TxtUpdateModalBody" TextWrapping="Wrap" LineHeight="22" Foreground="{StaticResource InkDim}" />
+
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8" Margin="0,4,0,0">
+                        <Button Grid.Column="0" Background="Transparent" BorderThickness="0" Padding="4,8" MinHeight="0"
+                                Content="忽略此版本" FontSize="12" Foreground="{StaticResource InkMute}" Click="BtnUpdateSkip_Click" Cursor="Hand" />
+                        <Button Grid.Column="2" Classes="ghost" Content="稍后提醒" Click="BtnUpdateLater_Click" />
+                        <Button Grid.Column="3" Classes="primary" Content="前往下载" Click="BtnUpdateGo_Click" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 通用确认/输入弹窗 -->
+        <Grid x:Name="DialogOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" ZIndex="40" IsVisible="False" Background="#A6000000">
+            <Border Background="#F90D151F" BorderBrush="#2D4156" BorderThickness="1" CornerRadius="20" Padding="24"
+                    Width="430" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 24 60 0 #88000000">
                 <StackPanel Spacing="12">
                     <TextBlock x:Name="DialogTitle" FontSize="18" FontWeight="DemiBold" Text="提示" />
-                    <TextBlock x:Name="DialogBody" TextWrapping="Wrap" Opacity="0.82" />
+                    <TextBlock x:Name="DialogBody" TextWrapping="Wrap" Opacity="0.84" LineHeight="21" />
                     <TextBox x:Name="DialogInput" IsVisible="False" />
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
                         <Button x:Name="BtnDialogCancel" Classes="ghost" Content="取消" Click="BtnDialogCancel_Click" />
                         <Button x:Name="BtnDialogOk" Classes="primary" Content="确定" Click="BtnDialogOk_Click" />
                     </StackPanel>
@@ -1130,8 +1425,9 @@
             </Border>
         </Grid>
 
-        <Grid x:Name="InfoOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" Background="#A6000000">
-            <Border Background="#FF0D151F" BorderBrush="#2A3B4D" BorderThickness="1" CornerRadius="20" Padding="26"
+        <!-- 说明弹窗 -->
+        <Grid x:Name="InfoOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" ZIndex="40" IsVisible="False" Background="#A6000000">
+            <Border Background="#F90D151F" BorderBrush="#2D4156" BorderThickness="1" CornerRadius="20" Padding="26"
                     Width="600" MaxHeight="640" VerticalAlignment="Center" HorizontalAlignment="Center"
                     BoxShadow="0 24 60 0 #88000000">
                 <Grid RowDefinitions="Auto,*,Auto">
@@ -1148,10 +1444,15 @@
             </Border>
         </Grid>
 
-        <Border x:Name="BusyOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" IsVisible="False" Background="#A6000000">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
-                <TextBlock x:Name="TxtBusy" Text="处理中…" FontSize="15" />
-            </StackPanel>
+        <!-- 忙碌遮罩 -->
+        <Border x:Name="BusyOverlay" Grid.RowSpan="2" Grid.ColumnSpan="2" ZIndex="60" IsVisible="False" Background="#B0060B12">
+            <Border Background="#EE0E1824" BorderBrush="#2D4156" BorderThickness="1" CornerRadius="16" Padding="24,16"
+                    VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 16 40 0 #88000000">
+                <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Ellipse Width="10" Height="10" Fill="#6FD3FF" VerticalAlignment="Center" />
+                    <TextBlock x:Name="TxtBusy" Text="处理中…" FontSize="14.5" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </suki:SukiWindow>

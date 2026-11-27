@@ -14,7 +14,13 @@ public partial class MainWindow
 {
     private bool _devicePopoverOpen;
 
-    private sealed record MdnsEndpoint(string Name, string Type, string Host, int Port);
+    public sealed record MdnsEndpoint(string Name, string Type, string Host, int Port)
+    {
+        public string Address => $"{Host}:{Port}";
+        public string KindText => Type.Contains("_adb-tls-connect", StringComparison.OrdinalIgnoreCase)
+            ? "无线调试"
+            : "无线 ADB";
+    }
 
     // ───────────────────────── 设备浮层 ─────────────────────────
 
@@ -40,8 +46,17 @@ public partial class MainWindow
 
         TxtPopoverStatus.Text = "";
         BtnPopoverConnect.IsEnabled = true;
+        UpdateReconnectLastChip();
         AnimateIn(DevicePopover, -6, 180);
         _ = LoadDevicePopoverAsync();
+    }
+
+    private void UpdateReconnectLastChip()
+    {
+        var last = _settings.LastEndpoint?.Trim() ?? "";
+        var show = last.Length > 0 && !string.Equals(last, _serial, StringComparison.OrdinalIgnoreCase);
+        BtnPopoverReconnectLast.IsVisible = show;
+        if (show) TxtPopoverReconnectLast.Text = "重连上次：" + last;
     }
 
     private async Task LoadDevicePopoverAsync()
@@ -58,19 +73,29 @@ public partial class MainWindow
             TxtPopoverHint.Text = list.Count == 0
                 ? "没有找到设备，插上 USB 或输入 IP 连接"
                 : $"共 {list.Count} 台，点一下切换";
+            UpdateReconnectLastChip();
 
-            if (list.Count > 0) return;
-
-            // 没有已连接设备时，看一眼局域网里有没有开着无线调试的
+            // 无论当前是否已连 USB，都异步扫描局域网 mDNS 无线调试设备，方便随时切无线
             var endpoints = await DiscoverEndpointsAsync();
-            var found = endpoints.FirstOrDefault(x =>
-                x.Type.Contains("_adb-tls-connect", StringComparison.OrdinalIgnoreCase) ||
-                x.Type.Contains("_adb._tcp", StringComparison.OrdinalIgnoreCase));
-            if (found is null) return;
+            var connectable = endpoints
+                .Where(x =>
+                    x.Type.Contains("_adb-tls-connect", StringComparison.OrdinalIgnoreCase) ||
+                    x.Type.Contains("_adb._tcp", StringComparison.OrdinalIgnoreCase))
+                .Where(x => !list.Any(d => d.Serial == x.Address && d.IsOnline))
+                .GroupBy(x => x.Address)
+                .Select(g => g.First())
+                .ToList();
 
-            TxtPopoverIp.Text = found.Host;
-            TxtPopoverPort.Text = found.Port.ToString();
-            TxtPopoverHint.Text = $"发现无线调试设备 {found.Host}:{found.Port}，点「连接」";
+            ListMdnsDevices.ItemsSource = connectable;
+            PanelMdnsFound.IsVisible = connectable.Count > 0;
+
+            if (list.Count == 0 && connectable.Count > 0 && string.IsNullOrWhiteSpace(TxtPopoverIp.Text))
+            {
+                var first = connectable[0];
+                TxtPopoverIp.Text = first.Host;
+                TxtPopoverPort.Text = first.Port.ToString();
+                TxtPopoverHint.Text = $"发现无线调试设备 {first.Address}，点一下直连";
+            }
         }
         catch (Exception ex)
         {
@@ -105,7 +130,22 @@ public partial class MainWindow
         }
 
         await SetActiveDeviceAsync(device);
-        Toast("已切换到 " + device.DisplayName);
+        Toast("已切换到 " + device.DisplayName, success: true);
+    }
+
+    private async void PopoverMdns_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Control { DataContext: MdnsEndpoint ep }) return;
+        TxtPopoverIp.Text = ep.Host;
+        TxtPopoverPort.Text = ep.Port.ToString();
+        await ConnectWirelessEndpointAsync(ep.Address);
+    }
+
+    private async void BtnPopoverReconnectLast_Click(object? sender, RoutedEventArgs e)
+    {
+        var endpoint = _settings.LastEndpoint?.Trim() ?? "";
+        if (endpoint.Length == 0) return;
+        await ConnectWirelessEndpointAsync(endpoint);
     }
 
     private async void BtnPopoverConnect_Click(object? sender, RoutedEventArgs e)
@@ -120,16 +160,32 @@ public partial class MainWindow
             return;
         }
 
+        // 支持直接把 ip:port 整串粘进 IP 框
+        if (port.Length == 0 && ip.Contains(':'))
+        {
+            var idx = ip.LastIndexOf(':');
+            port = ip[(idx + 1)..].Trim();
+            ip = ip[..idx].Trim();
+            TxtPopoverIp.Text = ip;
+            TxtPopoverPort.Text = port;
+        }
+
         if (port.Length == 0)
         {
-            TxtPopoverStatus.Text = "端口不能空。无线调试页面上显示的是「IP:端口」，把端口抄过来（老式 adb tcpip 才是 5555）。";
+            TxtPopoverStatus.Text = "端口不能空。无线调试页显示的是「IP:端口」，把端口抄过来（老式 adb tcpip 才是 5555）。";
             TxtPopoverPort.Focus();
             return;
         }
 
-        var endpoint = $"{ip}:{port}";
+        await ConnectWirelessEndpointAsync($"{ip}:{port}");
+    }
+
+    private async Task ConnectWirelessEndpointAsync(string endpoint)
+    {
         BtnPopoverConnect.IsEnabled = false;
-        TxtPopoverStatus.Text = "正在连接…";
+        BtnPopoverReconnectLast.IsEnabled = false;
+        TxtPopoverStatus.Text = "正在连接 " + endpoint + "…";
+        _suppressAutoReconnect = false;
 
         try
         {
@@ -141,7 +197,7 @@ public partial class MainWindow
 
             _settings.LastEndpoint = endpoint;
             SettingsStore.Save();
-            TxtLastEndpoint.Text = endpoint;
+            UpdateLastEndpointUi();
 
             await LoadDevicePopoverAsync();
             var target = (ListPopoverDevices.ItemsSource as IEnumerable<DeviceInfo>)?
@@ -150,7 +206,7 @@ public partial class MainWindow
 
             await SetActiveDeviceAsync(target);
             ToggleDevicePopover(false);
-            Toast("已连接 " + endpoint);
+            Toast("已连接 " + endpoint, success: true);
         }
         catch (Exception ex)
         {
@@ -160,6 +216,7 @@ public partial class MainWindow
         finally
         {
             BtnPopoverConnect.IsEnabled = true;
+            BtnPopoverReconnectLast.IsEnabled = true;
         }
     }
 
@@ -211,7 +268,7 @@ public partial class MainWindow
 
             await SetActiveDeviceAsync(target);
             ToggleDevicePopover(false);
-            Toast("已连接 " + target.Serial);
+            Toast("已连接 " + target.Serial, success: true);
         }
         finally
         {
@@ -235,21 +292,18 @@ public partial class MainWindow
 
         status("配对成功，正在找连接端口…");
 
-        // 标准流程：配对端口（_adb-tls-pairing）和连接端口（_adb-tls-connect）是两个不同的随机端口。
-        // 配对成功后 mDNS 记录可能晚一两秒才广播，这里短暂轮询，拿不到就不猜 5555。
         var connectPort = await DiscoverConnectPortAsync(ip);
         if (connectPort is null)
         {
             TxtPopoverIp.Text = ip;
             TxtPopoverPort.Text = "";
             TxtPopoverPort.Focus();
-            status($"已配对成功。现在打开手机的「无线调试」页，上面那行「IP 地址和端口」就是连接地址，把端口填到下面「无线连接」里再点连接（配对端口和连接端口不是同一个）。");
+            status("已配对成功。打开手机的「无线调试」页，把上方「IP 地址和端口」中的端口填到「无线连接」里再点连接（配对端口与连接端口不同）。");
             return false;
         }
 
         var endpoint = $"{ip}:{connectPort}";
 
-        // 同一台手机以前连过别的端口时，先断开旧 serial，避免列表里留一堆同名设备
         var existing = await Adb.GetDevicesAsync();
         foreach (var stale in existing.Where(d => d.Serial.StartsWith(ip + ":", StringComparison.Ordinal) && d.Serial != endpoint))
         {
@@ -262,7 +316,7 @@ public partial class MainWindow
             {
                 _settings.LastEndpoint = endpoint;
                 SettingsStore.Save();
-                TxtLastEndpoint.Text = endpoint;
+                UpdateLastEndpointUi();
                 TxtPopoverIp.Text = ip;
                 TxtPopoverPort.Text = connectPort.Value.ToString();
                 status("已连接 " + endpoint);
@@ -272,7 +326,7 @@ public partial class MainWindow
             if (attempt < 2) await Task.Delay(1200);
         }
 
-        status($"已配对成功，但连接 {endpoint} 没成功。打开手机的「无线调试」页，把上面显示的 IP:端口填到「无线连接」里再点连接。");
+        status($"已配对成功，但连接 {endpoint} 没成功。请核对手机「无线调试」页上的端口后再点连接。");
         return false;
     }
 
@@ -306,10 +360,6 @@ public partial class MainWindow
         return "配对失败：" + text;
     }
 
-    /// <summary>
-    /// 找 _adb-tls-connect（或老的 _adb._tcp）广播的连接端口。配对刚结束时广播可能晚到，短暂轮询几次。
-    /// 拿不到就返回 null，由调用方让用户从「无线调试」页面抄端口，绝不默认 5555。
-    /// </summary>
     private static async Task<int?> DiscoverConnectPortAsync(string ip)
     {
         for (var attempt = 0; attempt < 4; attempt++)

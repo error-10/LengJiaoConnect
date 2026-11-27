@@ -25,18 +25,19 @@ public partial class MainWindow
 
     private static string RecentFilePath => Path.Combine(SettingsStore.DirectoryPath, "recent-apps.json");
 
-    private string AppsCachePath => Path.Combine(SettingsStore.DirectoryPath, "cache", "apps-" + SafeSerial(_serial) + ".json");
+    private static string AppsCachePathFor(string serial) =>
+        Path.Combine(SettingsStore.DirectoryPath, "cache", "apps-" + SafeSerial(serial) + ".json");
 
     private static string SafeSerial(string serial) =>
         string.IsNullOrWhiteSpace(serial) ? "default" : new string(serial.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
 
     /// <summary>先读本地缓存，界面立刻有东西；随后后台同步会覆盖。</summary>
-    public async Task LoadAppsCacheAsync()
+    public async Task LoadAppsCacheAsync(int epoch)
     {
         var serial = _serial;
         if (string.IsNullOrEmpty(serial)) return;
 
-        var path = AppsCachePath;
+        var path = AppsCachePathFor(serial);
         if (!File.Exists(path)) return;
 
         List<AppInfo>? cached;
@@ -51,12 +52,13 @@ public partial class MainWindow
         }
         if (cached is null || cached.Count == 0) return;
 
+        var countsSnapshot = new Dictionary<string, int>(_launchCounts, StringComparer.Ordinal);
         var ordered = await Task.Run(() =>
         {
             foreach (var app in cached)
             {
                 app.Icon = DecodeIcon(app.IconBase64);
-                app.LaunchCount = LaunchCount(app.PackageName);
+                app.LaunchCount = countsSnapshot.TryGetValue(app.PackageName, out var n) ? n : 0;
             }
             return cached
                 .OrderByDescending(a => a.LaunchCount)
@@ -64,35 +66,41 @@ public partial class MainWindow
                 .ToList();
         });
 
-        if (!string.Equals(serial, _serial, StringComparison.Ordinal)) return;
+        if (_deviceEpoch != epoch || !string.Equals(serial, _serial, StringComparison.Ordinal))
+        {
+            foreach (var app in ordered) app.DisposeIcon();
+            return;
+        }
 
-        _apps.Clear();
-        foreach (var app in ordered) _apps.Add(app);
-        TxtAppsCount.Text = _apps.Count + " 个应用";
-        PanelAppsEmpty.IsVisible = _apps.Count == 0;
-        ApplyAppFilter();
-        RebuildRecent();
+        ReplaceApps(ordered);
     }
 
-    private void SaveAppsCache()
+    private static void SaveAppsCacheAsync(string serial, List<AppInfo> source)
     {
-        try
+        if (string.IsNullOrWhiteSpace(serial)) return;
+        var snapshot = source.Select(a => new AppInfo
         {
-            var path = AppsCachePath;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var snapshot = _apps.Select(a => new AppInfo
+            PackageName = a.PackageName,
+            AppName = a.AppName,
+            IconBase64 = a.IconBase64,
+            LaunchCount = a.LaunchCount
+        }).ToList();
+
+        _ = Task.Run(() =>
+        {
+            try
             {
-                PackageName = a.PackageName,
-                AppName = a.AppName,
-                IconBase64 = a.IconBase64,
-                LaunchCount = a.LaunchCount
-            }).ToList();
-            File.WriteAllText(path, JsonSerializer.Serialize(snapshot));
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("写应用缓存失败：" + ex.Message);
-        }
+                var path = AppsCachePathFor(serial);
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                var tmp = path + ".tmp";
+                File.WriteAllText(tmp, JsonSerializer.Serialize(snapshot));
+                File.Move(tmp, path, true);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn("写应用缓存失败：" + ex.Message);
+            }
+        });
     }
 
     private void OnAppReceived(string package, string name, string icon)
@@ -106,10 +114,12 @@ public partial class MainWindow
 
     private void OnAppsCompleted(int count)
     {
-        Dispatcher.UIThread.Post(async () => await ApplyAppsAsync(count));
+        var epoch = _deviceEpoch;
+        var serial = _serial;
+        Dispatcher.UIThread.Post(async () => await ApplyAppsAsync(serial, epoch));
     }
 
-    private async Task ApplyAppsAsync(int reported)
+    private async Task ApplyAppsAsync(string serial, int epoch)
     {
         List<AppInfo> snapshot;
         lock (_tempAppsGate)
@@ -118,6 +128,9 @@ public partial class MainWindow
             _tempApps.Clear();
         }
 
+        if (_deviceEpoch != epoch || !string.Equals(serial, _serial, StringComparison.Ordinal))
+            return;
+
         if (snapshot.Count == 0)
         {
             TxtAppsCount.Text = "0 个应用";
@@ -125,12 +138,13 @@ public partial class MainWindow
             return;
         }
 
+        var countsSnapshot = new Dictionary<string, int>(_launchCounts, StringComparer.Ordinal);
         var ordered = await Task.Run(() =>
         {
             foreach (var app in snapshot)
             {
                 app.Icon = DecodeIcon(app.IconBase64);
-                app.LaunchCount = LaunchCount(app.PackageName);
+                app.LaunchCount = countsSnapshot.TryGetValue(app.PackageName, out var n) ? n : 0;
             }
             return snapshot
                 .OrderByDescending(a => a.LaunchCount)
@@ -138,14 +152,24 @@ public partial class MainWindow
                 .ToList();
         });
 
+        if (_deviceEpoch != epoch || !string.Equals(serial, _serial, StringComparison.Ordinal))
+        {
+            foreach (var app in ordered) app.DisposeIcon();
+            return;
+        }
+
+        ReplaceApps(ordered);
+        SaveAppsCacheAsync(serial, ordered);
+    }
+
+    private void ReplaceApps(List<AppInfo> ordered)
+    {
+        foreach (var old in _apps) old.DisposeIcon();
         _apps.Clear();
         foreach (var app in ordered) _apps.Add(app);
 
-        TxtAppsCount.Text = _apps.Count + " 个应用";
-        PanelAppsEmpty.IsVisible = _apps.Count == 0;
         ApplyAppFilter();
         RebuildRecent();
-        SaveAppsCache();
     }
 
     private static IImage? DecodeIcon(string base64)
@@ -173,19 +197,33 @@ public partial class MainWindow
             : _apps.Where(a => a.DisplayName.Contains(keyword, StringComparison.CurrentCultureIgnoreCase) ||
                                a.PackageName.Contains(keyword, StringComparison.OrdinalIgnoreCase)).ToList();
 
-        ListApps.ItemsSource = view;
-        TxtAppsCount.Text = string.IsNullOrEmpty(keyword) ? _apps.Count + " 个应用" : view.Count + " / " + _apps.Count + " 个应用";
+        // 始终维护已绑定的 _visibleApps，不替换 ListApps.ItemsSource
+        _visibleApps.Clear();
+        foreach (var item in view) _visibleApps.Add(item);
+
+        TxtAppsCount.Text = string.IsNullOrEmpty(keyword)
+            ? _apps.Count + " 个应用"
+            : view.Count + " / " + _apps.Count + " 个应用";
         PanelAppsEmpty.IsVisible = view.Count == 0;
+        BtnClearAppSearch.IsVisible = !string.IsNullOrEmpty(_searchText);
     }
 
     private void TxtAppSearch_TextChanged(object? sender, TextChangedEventArgs e)
     {
         _searchText = TxtAppSearch.Text ?? "";
+        BtnClearAppSearch.IsVisible = !string.IsNullOrEmpty(_searchText);
         _searchTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
         _searchTimer.Stop();
         _searchTimer.Tick -= SearchTimerTick;
         _searchTimer.Tick += SearchTimerTick;
         _searchTimer.Start();
+    }
+
+    private void BtnClearAppSearch_Click(object? sender, RoutedEventArgs e)
+    {
+        TxtAppSearch.Text = "";
+        _searchText = "";
+        ApplyAppFilter();
     }
 
     private void SearchTimerTick(object? sender, EventArgs e)
@@ -197,8 +235,7 @@ public partial class MainWindow
     private async void BtnRefreshApps_Click(object? sender, RoutedEventArgs e)
     {
         if (_helper is not { IsConnected: true }) { Toast("高级互联没连上，先在设置里装助手", true); return; }
-        lock (_tempAppsGate) _tempApps.Clear();
-        await _helper.RequestAppsAsync();
+        await RequestAppsAsync();
         Toast("正在同步应用列表…");
     }
 
@@ -219,21 +256,28 @@ public partial class MainWindow
         if (string.IsNullOrEmpty(_serial)) { Toast("先连接设备", true); return; }
         try
         {
-            await Adb.ShellAsync(_serial, $"monkey -p {Adb.Quote(app.PackageName)} -c android.intent.category.LAUNCHER 1", 15000);
+            var r = await Adb.ShellAsync(_serial, $"monkey -p {Adb.Quote(app.PackageName)} -c android.intent.category.LAUNCHER 1", 15000);
+            if (!r.Ok || r.All.Contains("No activities found", StringComparison.OrdinalIgnoreCase)
+                      || r.All.Contains("monkey aborted", StringComparison.OrdinalIgnoreCase))
+            {
+                Toast($"无法启动 {app.DisplayName}（该应用没有可启动界面或已卸载）", true);
+                return;
+            }
+
             _launchCounts[app.PackageName] = LaunchCount(app.PackageName) + 1;
             app.LaunchCount = LaunchCount(app.PackageName);
             SaveLaunchCounts();
             RebuildRecent();
 
-            // 点应用 = 手机上打开 + 电脑这边直接投出来（保持旧版行为）
+            // 点应用 = 手机上打开 + 电脑这边直接投出来
             if (!_scrcpy.IsRunning(_serial))
             {
                 var casted = await _scrcpy.StartAsync(_serial, _settings);
-                Toast(casted ? $"已打开 {app.DisplayName}，正在投屏" : $"已打开 {app.DisplayName}，投屏没起来", !casted);
+                Toast(casted ? $"已打开 {app.DisplayName}，正在投屏" : $"已打开 {app.DisplayName}，投屏没起来", !casted, casted);
             }
             else
             {
-                Toast("已在手机上打开 " + app.DisplayName);
+                Toast("已在手机上打开 " + app.DisplayName, success: true);
             }
         }
         catch (Exception ex)
@@ -276,7 +320,9 @@ public partial class MainWindow
         try
         {
             Directory.CreateDirectory(SettingsStore.DirectoryPath);
-            File.WriteAllText(RecentFilePath, JsonSerializer.Serialize(_launchCounts));
+            var tmp = RecentFilePath + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(_launchCounts));
+            File.Move(tmp, RecentFilePath, true);
         }
         catch (Exception ex)
         {
@@ -308,8 +354,8 @@ public partial class MainWindow
         try
         {
             var r = await Adb.InstallApkAsync(_serial, apkPath, allowDowngrade: true);
-            Toast(r.Success ? "装好了：" + Path.GetFileName(apkPath) : "安装失败：" + r.Message, !r.Success);
-            if (r.Success && _helper is { IsConnected: true }) await _helper.RequestAppsAsync();
+            Toast(r.Success ? "装好了：" + Path.GetFileName(apkPath) : "安装失败：" + r.Message, !r.Success, r.Success);
+            if (r.Success && _helper is { IsConnected: true }) await RequestAppsAsync();
         }
         finally { Busy("", false); }
     }

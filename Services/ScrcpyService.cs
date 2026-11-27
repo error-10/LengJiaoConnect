@@ -1,17 +1,16 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace LengJiaoConnect.Services;
 
 /// <summary>
-/// scrcpy 子进程管理。旧实现里"死等 MainWindowHandle"会永久占线程、
-/// 退出回调还会在程序关闭后 Dispatcher.Invoke 崩溃——这里全部按超时+事件处理。
+/// scrcpy 子进程管理：超时检测、进程实例校验、UTF-8 日志解码、输入法切 US、自动旋转恢复。
 /// </summary>
 public sealed class ScrcpyService : IDisposable
 {
     private readonly Dictionary<string, Process> _running = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, IntPtr> _originalLayouts = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> _rotationBefore = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
 
@@ -20,16 +19,10 @@ public sealed class ScrcpyService : IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr LoadKeyboardLayoutW(string pwszKLID, uint flags);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetKeyboardLayout(uint idThread);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr ActivateKeyboardLayout(IntPtr hkl, uint flags);
-
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessageW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
-    /// <summary>把 scrcpy 窗口的输入法切到 US 布局，避免中文输入法截走按键。</summary>
+    /// <summary>把 scrcpy 窗口的输入法切到 US 布局，避免中文输入法截走按键（仅作用于 scrcpy 进程窗口）。</summary>
     private static void ApplyUsKeyboard(Process process)
     {
         try
@@ -44,12 +37,6 @@ public sealed class ScrcpyService : IDisposable
         {
             Log.Warn("scrcpy.IME", ex.Message);
         }
-    }
-
-    private void RestoreKeyboard(string serial)
-    {
-        if (!_originalLayouts.Remove(serial, out var hkl)) return;
-        try { ActivateKeyboardLayout(hkl, 0); } catch { }
     }
 
     private static async Task<int> ReadAccelRotationAsync(string serial)
@@ -68,7 +55,11 @@ public sealed class ScrcpyService : IDisposable
     /// <summary>部分 ROM 在投屏/息屏时会把自动旋转打开，这里按投屏前的状态恢复。</summary>
     private async Task RestoreAccelRotationAsync(string serial)
     {
-        if (!_rotationBefore.TryGetValue(serial, out var before) || before < 0) return;
+        int before;
+        lock (_gate)
+        {
+            if (!_rotationBefore.TryGetValue(serial, out before) || before < 0) return;
+        }
         try
         {
             var now = await ReadAccelRotationAsync(serial);
@@ -153,11 +144,14 @@ public sealed class ScrcpyService : IDisposable
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
-            RedirectStandardError = true
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
         };
         foreach (var a in args) psi.ArgumentList.Add(a);
 
-        _rotationBefore[serial] = await ReadAccelRotationAsync(serial);
+        var rotBefore = await ReadAccelRotationAsync(serial);
+        lock (_gate) _rotationBefore[serial] = rotBefore;
 
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var errorTail = "";
@@ -173,13 +167,18 @@ public sealed class ScrcpyService : IDisposable
         };
         process.Exited += (_, _) =>
         {
-            lock (_gate) _running.Remove(serial);
-            RestoreKeyboard(serial);
-            _ = RestoreAccelRotationAsync(serial);
-            StatusChanged?.Invoke(serial, "投屏已结束", false);
+            bool wasActive;
+            lock (_gate)
+            {
+                wasActive = _running.TryGetValue(serial, out var cur) && ReferenceEquals(cur, process);
+                if (wasActive) _running.Remove(serial);
+            }
+            if (wasActive)
+            {
+                _ = RestoreAccelRotationAsync(serial);
+                StatusChanged?.Invoke(serial, "投屏已结束", false);
+            }
         };
-
-        _originalLayouts[serial] = GetKeyboardLayout(0);
 
         try
         {
@@ -229,8 +228,15 @@ public sealed class ScrcpyService : IDisposable
             catch { }
         }
 
+        // 窗口超时未出现：清理僵尸进程并返回 false，避免上层误判“投屏成功”。
+        lock (_gate)
+        {
+            if (_running.TryGetValue(serial, out var cur) && ReferenceEquals(cur, process))
+                _running.Remove(serial);
+        }
+        try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch { }
         StatusChanged?.Invoke(serial, "投屏窗口没有出现（设备可能未授权投屏）", true);
-        return true;
+        return false;
     }
 
     public void Stop(string serial)
@@ -249,6 +255,7 @@ public sealed class ScrcpyService : IDisposable
         {
             Log.Warn("scrcpy.Stop", ex.Message);
         }
+        StatusChanged?.Invoke(serial, "投屏已结束", false);
     }
 
     public void StopAll()

@@ -30,7 +30,8 @@ public partial class App : Application
             Log.Fatal("UI 未处理异常", e.Exception);
             e.Handled = true;
         };
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Fatal("域未处理异常", e.ExceptionObject as Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Log.Fatal("域未处理异常", e.ExceptionObject as Exception ?? new Exception(e.ExceptionObject?.ToString() ?? "未知域异常"));
 
         SettingsStore.Load();
         ApplyBrandTheme();
@@ -61,6 +62,13 @@ public partial class App : Application
     {
         try
         {
+            var hwnd = Native.FindWindowW(null, "棱角互联");
+            if (hwnd != IntPtr.Zero)
+            {
+                Native.ShowWindow(hwnd, 9);
+                Native.SetForegroundWindow(hwnd);
+                return;
+            }
             foreach (var p in Process.GetProcessesByName("LengJiaoConnect"))
             {
                 if (p.Id == Environment.ProcessId || p.MainWindowHandle == IntPtr.Zero) continue;
@@ -74,6 +82,8 @@ public partial class App : Application
 
     private static class Native
     {
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        public static extern IntPtr FindWindowW(string? lpClassName, string? lpWindowName);
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
         [System.Runtime.InteropServices.DllImport("user32.dll")]
