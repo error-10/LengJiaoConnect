@@ -13,7 +13,7 @@
 [![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?style=flat-square)](HelperApk/)
 [![Platform](https://img.shields.io/badge/Windows-10%2F11%20x64-0078D6?style=flat-square)](#环境要求)
 
-[下载最新版 Release](https://github.com/error-10/LengJiaoConnect/releases/latest) · [快速上手](#快速上手) · [通信协议](#通信协议) · [从源码构建](#从源码构建)
+[官网介绍](https://miqwq.com/index.php/%e6%a3%b1%e8%a7%92%e4%ba%92%e8%81%94-%e4%b8%80%e7%ab%99%e5%bc%8f%e7%ac%ac%e4%b8%89%e6%96%b9%e6%89%8b%e6%9c%ba%e7%94%b5%e8%84%91%e4%ba%92%e8%81%94%e8%bd%af%e4%bb%b6/) · [下载最新版 Release](https://github.com/error-10/LengJiaoConnect/releases/latest) · [快速上手](#快速上手) · [通信协议](#通信协议) · [从源码构建](#从源码构建)
 
 </div>
 
@@ -158,6 +158,7 @@ PC 端 [HelperClient.cs](Services/HelperClient.cs) 与手机端 [HelperService.j
 - 手机端助手仅声明 `READ_SMS` 与 `QUERY_ALL_PACKAGES`，通知同步通过系统 `NotificationListenerService` 显式授权，随时可在设置页一键卸载停用。
 - 仅在执行版本更新检查时访问版本校验页（含服务器校时与内容校验），不携带任何设备标识。
 
-## 作者
+## 官网与作者
 
-**by 一条橙鱼** · https://miqwq.com
+- **官网**：[棱角互联-一站式第三方手机电脑互联软件 - miQwQ](https://miqwq.com/index.php/%e6%a3%b1%e8%a7%92%e4%ba%92%e8%81%94-%e4%b8%80%e7%ab%99%e5%bc%8f%e7%ac%ac%e4%b8%89%e6%96%b9%e6%89%8b%e6%9c%ba%e7%94%b5%e8%84%91%e4%ba%92%e8%81%94%e8%bd%af%e4%bb%b6/)
+- **作者**：**by 一条橙鱼** · https://miqwq.com
